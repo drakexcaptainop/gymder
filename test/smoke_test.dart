@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gymder/core_data.dart';
 import 'package:gymder/main.dart';
 import 'package:gymder/state.dart';
+import 'package:gymder/ui.dart';
 
 void ignoreOverflow() {
   // La fuente de prueba (Ahem) es más ancha que la real: ignoramos solo los overflows de layout.
@@ -21,8 +22,11 @@ Future<void> login(WidgetTester t, String email) async {
 }
 
 Future<void> logout(WidgetTester t) async {
+  await t.pump(const Duration(seconds: 3)); // deja que se cierre cualquier aviso (toast) que tape el botón
+  await t.pump(const Duration(seconds: 1));
   await t.tap(find.text('Cuenta').last);
   await t.pumpAndSettle();
+  await t.scrollUntilVisible(find.text('Cerrar sesión'), 200);
   await t.tap(find.text('Cerrar sesión'));
   await t.pumpAndSettle();
 }
@@ -175,5 +179,107 @@ void main() {
     await t.pumpAndSettle();
     await t.scrollUntilVisible(find.text('Plan Premium'), 300);
     expect(find.text('Plan Premium'), findsOneWidget);
+  });
+
+  testWidgets('cambiar contraseña desde Cuenta', (t) async {
+    ignoreOverflow();
+    t.view.physicalSize = const Size(900, 1800);
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
+    app.logout();
+    app.register(role: AppRole.user, nombre: 'Prueba Clave', email: 'clave@test.com', password: 'actual1');
+    await t.pumpWidget(const GymderApp());
+    await t.tap(find.text('Cuenta').last);
+    await t.pumpAndSettle();
+    await t.tap(find.text('Cambiar contraseña'));
+    await t.pumpAndSettle();
+    final f = find.byType(TextField);
+    await t.enterText(f.at(0), 'incorrecta');
+    await t.enterText(f.at(1), 'nueva123');
+    await t.enterText(f.at(2), 'nueva123');
+    await t.pump();
+    await t.tap(find.text('Guardar contraseña'));
+    await t.pumpAndSettle();
+    expect(find.text('La contraseña actual no coincide'), findsOneWidget);
+    await t.enterText(f.at(0), 'actual1');
+    await t.pump();
+    await t.tap(find.text('Guardar contraseña'));
+    await t.pumpAndSettle();
+    expect(app.session!.password, 'nueva123');
+  });
+
+  testWidgets('recuperar contraseña con código', (t) async {
+    ignoreOverflow();
+    t.view.physicalSize = const Size(900, 1800);
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
+    app.logout();
+    app.register(role: AppRole.user, nombre: 'Prueba Olvido', email: 'olvido@test.com', password: 'vieja11');
+    app.logout();
+    await t.pumpWidget(const GymderApp());
+    await t.tap(find.text('Iniciar sesión'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('¿Olvidaste tu contraseña?'));
+    await t.pumpAndSettle();
+    await t.enterText(find.byType(TextField), 'olvido@test.com');
+    await t.pump();
+    await t.tap(find.text('Enviar código'));
+    await t.pumpAndSettle();
+    final f = find.byType(TextField);
+    await t.enterText(f.at(1), AppState.recoveryCode);
+    await t.enterText(f.at(2), 'brandnew1');
+    await t.pump();
+    await t.tap(find.text('Cambiar contraseña'));
+    await t.pumpAndSettle();
+    expect(app.login('olvido@test.com', 'brandnew1'), isNull);
+  });
+
+  testWidgets('elegir foto de perfil (avatar)', (t) async {
+    ignoreOverflow();
+    t.view.physicalSize = const Size(900, 1800);
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
+    app.logout();
+    app.register(role: AppRole.user, nombre: 'Prueba Foto', email: 'foto@test.com', password: 'foto123');
+    await t.pumpWidget(const GymderApp());
+    await t.tap(find.text('Cuenta').last);
+    await t.pumpAndSettle();
+    await t.tap(find.text('Foto de perfil'));
+    await t.pumpAndSettle();
+    await t.tap(find.byType(Avatar).at(3)); // el 1º es la vista previa grande; el 4º es el tono 2
+    await t.pumpAndSettle();
+    expect(app.myTone, 2);
+  });
+
+  testWidgets('notificaciones: el entrenador las ve y las marca como leídas', (t) async {
+    ignoreOverflow();
+    t.view.physicalSize = const Size(900, 1800);
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
+    app.logout();
+    await t.pumpWidget(const GymderApp());
+    await login(t, 'valeria@demo.com');
+    expect(app.unreadCount, greaterThan(0));
+    await t.tap(find.byIcon(Icons.notifications_none));
+    await t.pumpAndSettle();
+    expect(find.text('Diego Paredes te escribió'), findsOneWidget);
+    await t.tap(find.byIcon(Icons.done_all));
+    await t.pumpAndSettle();
+    expect(app.unreadCount, 0);
+  });
+
+  test('reseñas: solo quien conversó puede reseñar y el promedio se actualiza', () {
+    app.logout();
+    expect(app.login('diego@demo.com', 'demo123'), isNull);
+    expect(app.canReview('c2'), isTrue); // Diego ya conversó con Mateo
+    expect(app.canReview('c6'), isFalse);
+    final antes = app.reviewsOf('c2').length;
+    app.addReview('c2', 3, 'Está bien');
+    expect(app.reviewsOf('c2').length, antes + 1);
+    app.addReview('c2', 5, 'Mejoró mucho'); // reemplaza su reseña anterior
+    expect(app.reviewsOf('c2').length, antes + 1);
+    expect(app.myReview('c2')!.estrellas, 5);
+    expect(app.ratingOf('c2'), closeTo(5.0, .001));
+    app.logout();
   });
 }

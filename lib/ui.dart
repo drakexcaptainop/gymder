@@ -130,18 +130,43 @@ class Btn extends StatelessWidget {
   }
 }
 
+/// Paleta de avatares: (fondo, texto). El usuario elige una en "Foto de perfil".
+const avatarTones = <(Color, Color)>[
+  (navy, lime),
+  (lime, navy),
+  (cyan, navy),
+  (Color(0xFF7C3AED), white),
+  (Color(0xFFF97316), navy),
+  (Color(0xFF0F766E), white),
+];
+
 class Avatar extends StatelessWidget {
   final String ini;
   final double size;
-  const Avatar(this.ini, {super.key, this.size = 48});
+  final int tone;
+  const Avatar(this.ini, {super.key, this.size = 48, this.tone = 0});
   @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(size / 3)),
-        child: Text(ini, style: ts(size * .36, w: FontWeight.w600, c: lime)),
-      );
+  Widget build(BuildContext context) {
+    final t = avatarTones[tone % avatarTones.length];
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: t.$1, borderRadius: BorderRadius.circular(size / 3)),
+      child: Text(ini, style: ts(size * .36, w: FontWeight.w600, c: t.$2)),
+    );
+  }
+}
+
+class Stars extends StatelessWidget {
+  final double value;
+  final double size;
+  const Stars(this.value, {super.key, this.size = 16});
+  @override
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+        for (var i = 1; i <= 5; i++)
+          Icon(value >= i - .25 ? Icons.star : value >= i - .75 ? Icons.star_half : Icons.star_border, size: size, color: const Color(0xFFF59E0B)),
+      ]);
 }
 
 class IconTile extends StatelessWidget {

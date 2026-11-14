@@ -4,6 +4,7 @@ import '../state.dart';
 import '../ui.dart';
 import 'cuenta.dart';
 import 'mensajes.dart';
+import 'resenas.dart';
 
 void openCoachProfile(BuildContext c, String id) =>
     Navigator.of(c).push(MaterialPageRoute(builder: (_) => PerfilCoachScreen(coachId: id)));
@@ -63,12 +64,14 @@ class PerfilCoachScreen extends StatelessWidget {
             bottom: bottom,
             child: ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), children: [
               Row(children: [
-                Avatar(c.ini, size: 72),
+                Avatar(c.ini, size: 72, tone: c.tone),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(c.nombre, style: ts(22, w: FontWeight.w600)),
                     Text('${c.especialidad} · ${c.modalidad}', style: ts(13, c: slate)),
+                    const SizedBox(height: 4),
+                    ratingSummary(c.id),
                   ]),
                 ),
               ]),
@@ -100,6 +103,10 @@ class PerfilCoachScreen extends StatelessWidget {
                       Text(p.precioTxt, style: ts(15, w: FontWeight.w700)),
                     ]),
                   ),
+              label('Reseñas'),
+              for (final r in app.reviewsOf(c.id).take(2)) ResenaCard(r),
+              if (app.reviewsOf(c.id).isEmpty) Text('Aún no hay reseñas.', style: ts(14, c: slate)),
+              SizedBox(width: double.infinity, child: Btn(app.canReview(c.id) && app.myReview(c.id) == null ? 'Escribir reseña' : 'Ver todas las reseñas', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ResenasScreen(coachId: c.id))), outlined: true, height: 44)),
               label('Servicios'),
               for (final s in c.servicios)
                 Padding(
@@ -135,7 +142,7 @@ class PerfilUsuarioScreen extends StatelessWidget {
             bottom: bottom,
             child: ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), children: [
               Row(children: [
-                Avatar(u.ini, size: 72),
+                Avatar(u.ini, size: 72, tone: u.tone),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

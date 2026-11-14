@@ -19,6 +19,8 @@ class AppState extends ChangeNotifier {
   final List<Account> accounts = seedAccounts();
   final List<UserProfile> users = seedUsers();
   final List<ContactRequest> requests = seedRequests();
+  final List<Review> reviews = seedReviews();
+  final List<AppNotification> notifications = seedNotifications();
 
   Account? session;
   int tab = 0;
@@ -139,6 +141,7 @@ class AppState extends ChangeNotifier {
       r = ContactRequest(id: 'r${_seq++}', userId: u.id, coachId: coachId, createdAt: DateTime.now(), status: ContactStatus.accepted)
         ..messages.add(ChatMessage(AppRole.user, preguntaPlanes, nowHm()));
       requests.insert(0, r);
+      _notify(coachId, '${u.nombre} quiere conocer tus planes', preguntaPlanes, r.id);
     }
     _seen.add(coachId);
     notifyListeners();
@@ -152,6 +155,85 @@ class AppState extends ChangeNotifier {
   /// Conversaciones en las que el último mensaje es del usuario, es decir, el coach debe responder.
   bool awaitingCoach(ContactRequest r) => r.messages.isNotEmpty && r.messages.last.author == AppRole.user;
   int get pendingCount => myRequests.where(awaitingCoach).length;
+  // ── Notificaciones
+  void _notify(String profileId, String titulo, String cuerpo, [String? requestId]) {
+    notifications.insert(0, AppNotification(id: 'n${_seq++}', profileId: profileId, titulo: titulo, cuerpo: cuerpo, hora: nowHm(), requestId: requestId));
+  }
+
+  List<AppNotification> get myNotifications => notifications.where((n) => n.profileId == session?.profileId).toList();
+  int get unreadCount => myNotifications.where((n) => !n.leida).length;
+
+  void markRead(String id) {
+    notifications.firstWhere((n) => n.id == id).leida = true;
+    notifyListeners();
+  }
+
+  void markAllRead() {
+    for (final n in myNotifications) {
+      n.leida = true;
+    }
+    notifyListeners();
+  }
+
+  // ── Reseñas
+  List<Review> reviewsOf(String coachId) => reviews.where((r) => r.coachId == coachId).toList();
+
+  double? ratingOf(String coachId) {
+    final l = reviewsOf(coachId);
+    return l.isEmpty ? null : l.fold<int>(0, (a, r) => a + r.estrellas) / l.length;
+  }
+
+  /// Solo puede reseñar quien ya conversó con el entrenador.
+  bool canReview(String coachId) => me != null && requestBetween(me!.id, coachId) != null;
+  Review? myReview(String coachId) => reviews.where((r) => r.coachId == coachId && r.userId == me?.id).firstOrNull;
+
+  void addReview(String coachId, int estrellas, String texto) {
+    final u = me;
+    if (u == null || estrellas < 1) return;
+    reviews.removeWhere((r) => r.coachId == coachId && r.userId == u.id);
+    reviews.insert(0, Review(id: 'rv${_seq++}', coachId: coachId, userId: u.id, autor: u.nombre, estrellas: estrellas, texto: texto.trim(), fecha: 'Hoy'));
+    _notify(coachId, '${u.nombre} te dejó una reseña', '${'★' * estrellas} ${texto.trim()}');
+    notifyListeners();
+  }
+
+  // ── Cuenta: contraseña y foto
+  /// Devuelve null si todo va bien, o el mensaje de error.
+  String? changePassword(String actual, String nueva) {
+    final a = session;
+    if (a == null) return 'Inicia sesión primero';
+    if (a.password != actual) return 'La contraseña actual no coincide';
+    if (nueva.length < 6) return 'La nueva contraseña debe tener al menos 6 caracteres';
+    if (nueva == actual) return 'Elige una contraseña distinta a la actual';
+    a.password = nueva;
+    _notify(a.profileId, 'Contraseña actualizada', 'Cambiaste la contraseña de tu cuenta.');
+    notifyListeners();
+    return null;
+  }
+
+  /// Código de verificación de la demo (en una app real llegaría por correo).
+  static const recoveryCode = '123456';
+  bool emailExists(String email) => accounts.any((a) => a.email == email.trim().toLowerCase());
+
+  String? resetPassword(String email, String code, String nueva) {
+    final a = accounts.where((x) => x.email == email.trim().toLowerCase()).firstOrNull;
+    if (a == null) return 'No encontramos una cuenta con ese correo';
+    if (code.trim() != recoveryCode) return 'El código no es correcto';
+    if (nueva.length < 6) return 'La nueva contraseña debe tener al menos 6 caracteres';
+    a.password = nueva;
+    notifyListeners();
+    return null;
+  }
+
+  int get myTone => isCoach ? (meCoach?.tone ?? 0) : (me?.tone ?? 0);
+
+  void setTone(int t) {
+    if (isCoach) {
+      meCoach?.tone = t;
+    } else {
+      me?.tone = t;
+    }
+    notifyListeners();
+  }
   // ── Planes y precios del entrenador
   void savePlan(Plan p) {
     final c = meCoach;
@@ -173,6 +255,7 @@ class AppState extends ChangeNotifier {
     final r = requests.firstWhere((x) => x.id == requestId);
     if (session == null || text.trim().isEmpty) return;
     r.messages.add(ChatMessage(session!.role, text.trim(), nowHm()));
+    _notify(isCoach ? r.userId : r.coachId, isCoach ? '$myName te respondió' : '$myName te escribió', text.trim(), r.id);
     notifyListeners();
   }
 }

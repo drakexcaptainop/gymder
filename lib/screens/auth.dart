@@ -98,6 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ]),
               ),
             ),
+          Center(child: TextButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RecuperarScreen())), child: const Text('¿Olvidaste tu contraseña?'))),
           Center(
             child: TextButton(
               onPressed: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const RegisterScreen())),
@@ -149,6 +150,62 @@ class _RegisterScreenState extends State<RegisterScreen> {
           if (error != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(error!, style: ts(13, c: Colors.red.shade700, w: FontWeight.w500))),
           const SizedBox(height: 20),
           SizedBox(width: double.infinity, child: Btn('Crear cuenta', submit, bg: lime, fg: navy)),
+        ]),
+      );
+}
+
+// ───────────────────────── Recuperar contraseña ─────────────────────────
+class RecuperarScreen extends StatefulWidget {
+  const RecuperarScreen({super.key});
+  @override
+  State<RecuperarScreen> createState() => _RecuperarScreenState();
+}
+
+class _RecuperarScreenState extends State<RecuperarScreen> {
+  final email = TextEditingController(), code = TextEditingController(), pass = TextEditingController();
+  bool sent = false;
+  String? error;
+
+  void sendCode() {
+    if (!app.emailExists(email.text)) return setState(() => error = 'No encontramos una cuenta con ese correo');
+    setState(() {
+      sent = true;
+      error = null;
+    });
+  }
+
+  void reset() {
+    final err = app.resetPassword(email.text, code.text, pass.text);
+    if (err != null) return setState(() => error = err);
+    Navigator.of(context).pop();
+    toast(context, 'Contraseña actualizada. Ya puedes iniciar sesión');
+  }
+
+  @override
+  Widget build(BuildContext context) => SubScreen(
+        title: 'Recuperar contraseña',
+        subtitle: sent ? 'Paso 2 de 2' : 'Paso 1 de 2',
+        child: ListView(padding: const EdgeInsets.all(16), children: [
+          label('Correo de tu cuenta'),
+          field(email, 'tu@correo.com', type: TextInputType.emailAddress, icon: Icons.mail_outline, onChanged: (_) => setState(() => error = null)),
+          if (!sent) ...[
+            const SizedBox(height: 16),
+            SizedBox(width: double.infinity, child: Btn('Enviar código', sendCode, bg: lime, fg: navy)),
+          ] else ...[
+            Container(
+              margin: const EdgeInsets.only(top: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: box(bg: cyanFaint, bd: cyanTint),
+              child: Text('Te enviamos un código de verificación. En esta demo el código es ${AppState.recoveryCode}.', style: ts(13, h: 1.4)),
+            ),
+            label('Código'),
+            field(code, '6 dígitos', type: TextInputType.number, maxLen: 6, icon: Icons.pin_outlined, onChanged: (_) => setState(() => error = null)),
+            label('Nueva contraseña'),
+            field(pass, 'Mínimo 6 caracteres', obscure: true, icon: Icons.lock_reset, onChanged: (_) => setState(() => error = null)),
+            const SizedBox(height: 16),
+            SizedBox(width: double.infinity, child: Btn('Cambiar contraseña', reset, bg: lime, fg: navy)),
+          ],
+          if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, style: ts(13, c: Colors.red.shade700, w: FontWeight.w500))),
         ]),
       );
 }

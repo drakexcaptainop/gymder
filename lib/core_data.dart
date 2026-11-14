@@ -14,12 +14,14 @@ class Coach {
   final int exp;
   final List<String> tags, servicios;
   final List<Plan> planes; // planes y precios que el entrenador publica en su perfil
+  int tone; // avatar elegido (índice en avatarTones)
 
   Coach({
     required this.id, required this.nombre, required this.ini, required this.especialidad,
     required this.modalidad, required this.exp, required this.lugar, required this.resumen,
     required this.bio, required this.enfoque, required this.tags, required this.servicios,
     List<Plan>? planes,
+    this.tone = 0,
   }) : planes = planes ?? [];
 }
 
@@ -48,7 +50,8 @@ Coach coachById(String id) => coaches.firstWhere((coach) => coach.id == id);
 class UserProfile {
   final String id;
   String nombre, ini, objetivo, nivel, disponibilidad, notas;
-  UserProfile({required this.id, required this.nombre, required this.ini, required this.objetivo, required this.nivel, required this.disponibilidad, required this.notas});
+  int tone;
+  UserProfile({this.tone = 0, required this.id, required this.nombre, required this.ini, required this.objetivo, required this.nivel, required this.disponibilidad, required this.notas});
 }
 
 class Account {
@@ -106,3 +109,31 @@ List<ContactRequest> seedRequests() {
       ]),
   ];
 }
+
+class Review {
+  final String id, coachId, autor, texto, fecha;
+  final String? userId; // null en reseñas de ejemplo
+  final int estrellas;
+  const Review({required this.id, required this.coachId, required this.autor, required this.estrellas, required this.texto, required this.fecha, this.userId});
+}
+
+List<Review> seedReviews() => [
+      Review(id: 'rv1', coachId: 'c1', autor: 'Mariana G.', estrellas: 5, texto: 'Muy clara con la técnica y paciente. Subí mis cargas sin lesionarme.', fecha: 'Hace 2 semanas'),
+      Review(id: 'rv2', coachId: 'c1', autor: 'Luis P.', estrellas: 4, texto: 'Buen seguimiento por chat y planes claros.', fecha: 'Hace 1 mes'),
+      Review(id: 'rv3', coachId: 'c2', autor: 'Andrea R.', estrellas: 5, texto: 'La revisión semanal marca la diferencia. Recomendado.', fecha: 'Hace 3 semanas'),
+      Review(id: 'rv4', coachId: 'c3', autor: 'Camilo V.', estrellas: 5, texto: 'Mi espalda lo agradece. Sesiones muy bien guiadas.', fecha: 'Hace 1 semana'),
+      Review(id: 'rv5', coachId: 'c4', autor: 'Paula S.', estrellas: 4, texto: 'Circuitos exigentes pero bien dosificados.', fecha: 'Hace 1 mes'),
+      Review(id: 'rv6', coachId: 'c5', autor: 'Jorge M.', estrellas: 5, texto: 'Logré mi primer 5K gracias al plan.', fecha: 'Hace 2 meses'),
+    ];
+
+class AppNotification {
+  final String id, profileId, titulo, cuerpo, hora;
+  final String? requestId; // al tocarla abre este chat
+  bool leida;
+  AppNotification({required this.id, required this.profileId, required this.titulo, required this.cuerpo, required this.hora, this.requestId, this.leida = false});
+}
+
+List<AppNotification> seedNotifications() => [
+      AppNotification(id: 'n1', profileId: 'c1', titulo: 'Diego Paredes te escribió', cuerpo: '¡Hola! ¿Qué planes tienes disponibles y cuánto cuestan?', hora: '08:40', requestId: 'r1'),
+      AppNotification(id: 'n2', profileId: 'u2', titulo: 'Mateo Salas respondió', cuerpo: 'Acepté tu solicitud. Cuéntame cómo te gustaría entrenar.', hora: 'Ayer', requestId: 'r2', leida: true),
+    ];

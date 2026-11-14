@@ -4,6 +4,7 @@ import '../core_data.dart';
 import '../state.dart';
 import '../ui.dart';
 import 'perfiles.dart';
+import 'resenas.dart';
 
 class DescubrirTab extends StatefulWidget {
   const DescubrirTab({super.key});
@@ -227,7 +228,7 @@ class _CoachCard extends StatelessWidget {
             child: Container(
               width: double.infinity,
               decoration: const BoxDecoration(color: navy, borderRadius: BorderRadius.vertical(top: Radius.circular(23))),
-              child: Center(child: Container(width: 120, height: 120, alignment: Alignment.center, decoration: BoxDecoration(color: lime, borderRadius: BorderRadius.circular(40)), child: Text(c.ini, style: ts(44, w: FontWeight.w700)))),
+              child: Center(child: Container(width: 120, height: 120, alignment: Alignment.center, decoration: BoxDecoration(color: c.tone == 0 ? lime : avatarTones[c.tone % avatarTones.length].$1, borderRadius: BorderRadius.circular(40)), child: Text(c.ini, style: ts(44, w: FontWeight.w700, c: c.tone == 0 ? navy : avatarTones[c.tone % avatarTones.length].$2)))),
             ),
           ),
           Padding(
@@ -238,6 +239,12 @@ class _CoachCard extends StatelessWidget {
               Text('${c.especialidad} · ${c.modalidad} · ${c.exp} años de experiencia', style: ts(13, c: slate, w: FontWeight.w500)),
               const SizedBox(height: 8),
               Text(c.resumen, style: ts(14, h: 1.4)),
+              const SizedBox(height: 8),
+              Row(children: [
+                ratingSummary(c.id),
+                const Spacer(),
+                if (c.planes.isNotEmpty) Text('Desde ¤ ${c.planes.map((p) => p.precio).reduce((a, b) => a < b ? a : b)} / mes', style: ts(12, w: FontWeight.w700)),
+              ]),
               const SizedBox(height: 10),
               Wrap(spacing: 6, runSpacing: 6, children: [for (final t in c.tags) Tag(t)]),
             ]),

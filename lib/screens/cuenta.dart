@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core_data.dart';
 import '../state.dart';
 import '../ui.dart';
+import 'ajustes.dart';
 import 'perfiles.dart';
 
 class CuentaTab extends StatelessWidget {
@@ -26,7 +27,7 @@ class CuentaTab extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               decoration: box(bg: navy, bd: null),
               child: Row(children: [
-                Avatar(ini, size: 56),
+                Avatar(ini, size: 56, tone: app.myTone),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -41,6 +42,9 @@ class CuentaTab extends StatelessWidget {
             _item(Icons.person_outline, coach ? 'Mi perfil de entrenador' : 'Mi perfil', () => coach ? openCoachProfile(context, s.profileId) : openUserProfile(context, s.profileId)),
             if (coach) _item(Icons.sell_outlined, 'Mis planes y precios', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PlanesEditorScreen()))),
             if (!coach) _item(Icons.edit_outlined, 'Editar perfil', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditarPerfilScreen()))),
+            _item(Icons.photo_camera_outlined, 'Foto de perfil', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FotoPerfilScreen()))),
+            _item(Icons.notifications_none, app.unreadCount > 0 ? 'Notificaciones (${app.unreadCount})' : 'Notificaciones', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificacionesScreen()))),
+            _item(Icons.lock_outline, 'Cambiar contraseña', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CambiarPasswordScreen()))),
             const SizedBox(height: 12),
             Btn('Cerrar sesión', app.logout, outlined: true, icon: Icons.logout),
           ]);

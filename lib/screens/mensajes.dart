@@ -2,19 +2,20 @@ import 'package:flutter/material.dart';
 import '../core_data.dart';
 import '../state.dart';
 import '../ui.dart';
+import 'ajustes.dart';
 import 'perfiles.dart';
 
 void openChat(BuildContext c, String requestId) =>
     Navigator.of(c).push(MaterialPageRoute(builder: (_) => ChatScreen(requestId: requestId)));
 
 /// Nombre e iniciales de la otra persona de la conversación, según el rol en sesión.
-(String, String) counterpart(ContactRequest r) {
+(String, String, int) counterpart(ContactRequest r) {
   if (app.isCoach) {
     final u = app.userById(r.userId);
-    return (u.nombre, u.ini);
+    return (u.nombre, u.ini, u.tone);
   }
   final c = coachById(r.coachId);
-  return (c.nombre, c.ini);
+  return (c.nombre, c.ini, c.tone);
 }
 
 // ───────────────────────── Pestaña Mensajes ─────────────────────────
@@ -28,9 +29,22 @@ class MensajesTab extends StatelessWidget {
           return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Conversaciones', style: ts(13, c: slate, w: FontWeight.w500)),
-                Text('Mensajes', style: ts(30, w: FontWeight.w600)),
+              child: Row(children: [
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Conversaciones', style: ts(13, c: slate, w: FontWeight.w500)),
+                    Text('Mensajes', style: ts(30, w: FontWeight.w600)),
+                  ]),
+                ),
+                Stack(clipBehavior: Clip.none, children: [
+                  RoundBtn(Icons.notifications_none, () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificacionesScreen()))),
+                  if (app.unreadCount > 0)
+                    Positioned(
+                      right: -4,
+                      top: -4,
+                      child: Container(width: 20, height: 20, alignment: Alignment.center, decoration: const BoxDecoration(color: cyan, shape: BoxShape.circle), child: Text('${app.unreadCount}', style: ts(11, w: FontWeight.w700))),
+                    ),
+                ]),
               ]),
             ),
             Expanded(
@@ -56,7 +70,7 @@ class MensajesTab extends StatelessWidget {
                             padding: const EdgeInsets.all(14),
                             decoration: box(),
                             child: Row(children: [
-                              Avatar(counterpart(r).$2, size: 48),
+                              Avatar(counterpart(r).$2, size: 48, tone: counterpart(r).$3),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
