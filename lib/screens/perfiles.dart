@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core_data.dart';
 import '../state.dart';
 import '../ui.dart';
+import 'cuenta.dart';
 import 'mensajes.dart';
 
 void openCoachProfile(BuildContext c, String id) =>
@@ -43,7 +44,9 @@ class PerfilCoachScreen extends StatelessWidget {
           final u = app.me;
           final req = u == null ? null : app.requestBetween(u.id, c.id);
           Widget? bottom;
-          if (u != null) {
+          if (app.meCoach?.id == c.id) {
+            bottom = SizedBox(width: double.infinity, child: Btn('Editar mis planes y precios', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PlanesEditorScreen())), bg: lime, fg: navy, icon: Icons.edit_outlined));
+          } else if (u != null) {
             bottom = SizedBox(
               width: double.infinity,
               child: req == null
@@ -72,11 +75,31 @@ class PerfilCoachScreen extends StatelessWidget {
               const SizedBox(height: 16),
               Text(c.bio, style: ts(15, h: 1.5)),
               label('Datos'),
-              _rows([('Especialidad', c.especialidad), ('Experiencia', '${c.exp} años'), ('Modalidad', c.modalidad), ('Lugar', c.lugar), ('Precio orientativo', c.precioOrientativo)]),
+              _rows([('Especialidad', c.especialidad), ('Experiencia', '${c.exp} años'), ('Modalidad', c.modalidad), ('Lugar', c.lugar)]),
               label('Enfoque'),
               Text(c.enfoque, style: ts(14, h: 1.5)),
               label('Temas'),
               Wrap(spacing: 6, runSpacing: 6, children: [for (final t in c.tags) Tag(t)]),
+              label('Planes y precios'),
+              if (c.planes.isEmpty)
+                Text(app.meCoach?.id == c.id ? 'Aún no publicaste planes. Agrégalos desde "Mis planes y precios".' : 'Este entrenador aún no publicó planes. Pregúntale por chat.', style: ts(14, c: slate, h: 1.4))
+              else
+                for (final p in c.planes)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(14),
+                    decoration: box(),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(p.nombre, style: ts(16, w: FontWeight.w600)),
+                          if (p.descripcion.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(p.descripcion, style: ts(13, c: slate, h: 1.4))),
+                        ]),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(p.precioTxt, style: ts(15, w: FontWeight.w700)),
+                    ]),
+                  ),
               label('Servicios'),
               for (final s in c.servicios)
                 Padding(

@@ -67,7 +67,7 @@ class AppState extends ChangeNotifier {
       coaches.add(Coach(
         id: id, nombre: nombre.trim(), ini: ini, especialidad: esp, modalidad: modalidad ?? 'Online', exp: 1, lugar: 'Por definir',
         resumen: 'Coach de $esp.', bio: 'Completa tu bio para que los usuarios te conozcan mejor.', enfoque: 'Por definir con cada alumno.',
-        tags: [esp], servicios: ['Entrenamiento de $esp'], precioOrientativo: 'A convenir por chat',
+        tags: [esp], servicios: ['Entrenamiento de $esp'],
       ));
     } else {
       users.add(UserProfile(id: id, nombre: nombre.trim(), ini: ini, objetivo: 'Por definir', nivel: niveles.first, disponibilidad: 'Por definir', notas: ''));
@@ -152,6 +152,22 @@ class AppState extends ChangeNotifier {
   /// Conversaciones en las que el último mensaje es del usuario, es decir, el coach debe responder.
   bool awaitingCoach(ContactRequest r) => r.messages.isNotEmpty && r.messages.last.author == AppRole.user;
   int get pendingCount => myRequests.where(awaitingCoach).length;
+  // ── Planes y precios del entrenador
+  void savePlan(Plan p) {
+    final c = meCoach;
+    if (c == null) return;
+    final i = c.planes.indexWhere((x) => x.id == p.id);
+    i >= 0 ? c.planes[i] = p : c.planes.add(p);
+    notifyListeners();
+  }
+
+  void deletePlan(String id) {
+    meCoach?.planes.removeWhere((p) => p.id == id);
+    notifyListeners();
+  }
+
+  String newPlanId() => 'p${_seq++}';
+
   // ── Chat
   void sendMessage(String requestId, String text) {
     final r = requests.firstWhere((x) => x.id == requestId);

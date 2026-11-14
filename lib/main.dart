@@ -4,7 +4,6 @@ import 'screens/auth.dart';
 import 'screens/cuenta.dart';
 import 'screens/descubrir.dart';
 import 'screens/mensajes.dart';
-import 'screens/solicitudes.dart';
 import 'state.dart';
 import 'ui.dart';
 
@@ -54,9 +53,8 @@ class GymderApp extends StatelessWidget {
 class Shell extends StatelessWidget {
   const Shell({super.key});
 
-  // Usuario: Descubrir · Solicitudes · Mensajes · Cuenta. Coach: Solicitudes · Mensajes · Cuenta.
+  // Usuario: Descubrir · Mensajes · Cuenta. Entrenador: Mensajes · Cuenta.
   static const _descubrir = ('Descubrir', Icons.style_outlined);
-  static const _solicitudes = ('Solicitudes', Icons.inbox_outlined);
   static const _mensajes = ('Mensajes', Icons.chat_bubble_outline);
   static const _cuenta = ('Cuenta', Icons.person_outline);
 
@@ -65,8 +63,8 @@ class Shell extends StatelessWidget {
         listenable: app,
         builder: (context, _) {
           final coach = app.isCoach;
-          final tabs = [if (!coach) _descubrir, _solicitudes, _mensajes, _cuenta];
-          final pages = [if (!coach) const DescubrirTab(), const SolicitudesTab(), const MensajesTab(), const CuentaTab()];
+          final tabs = [if (!coach) _descubrir, _mensajes, _cuenta];
+          final pages = [if (!coach) const DescubrirTab(), const MensajesTab(), const CuentaTab()];
           final cur = app.tab.clamp(0, tabs.length - 1);
           return Scaffold(
             body: SafeArea(bottom: false, child: IndexedStack(index: cur, children: pages)),
@@ -86,7 +84,7 @@ class Shell extends StatelessWidget {
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
                           Stack(clipBehavior: Clip.none, children: [
                             Icon(tabs[i].$2, size: 22, color: cur == i ? navy : slate),
-                            if (tabs[i] == _solicitudes && app.pendingCount > 0 && coach)
+                            if (tabs[i] == _mensajes && coach && app.pendingCount > 0)
                               Positioned(right: -6, top: -4, child: Container(width: 10, height: 10, decoration: const BoxDecoration(color: cyan, shape: BoxShape.circle))),
                           ]),
                           const SizedBox(height: 2),

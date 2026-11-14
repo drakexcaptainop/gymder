@@ -64,7 +64,8 @@ class MensajesTab extends StatelessWidget {
                                   Text(r.messages.isEmpty ? 'Sin mensajes todavía' : r.messages.last.text, maxLines: 1, overflow: TextOverflow.ellipsis, style: ts(13, c: slate)),
                                 ]),
                               ),
-                              if (r.messages.isNotEmpty) Text(r.messages.last.time, style: ts(11, c: slate)),
+                              const SizedBox(width: 8),
+                              replyTag(r),
                             ]),
                           ),
                         ),
@@ -146,7 +147,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     alignment: Alignment.centerLeft,
                     child: Pill('Responder con mis planes', false, () => setState(() {
                           final co = app.meCoach!;
-                          c.text = 'Estos son mis planes: ${co.servicios.join(', ')}. Precio orientativo: ${co.precioOrientativo}. ¿Qué objetivo y disponibilidad tienes?';
+                          final planes = co.planes.isEmpty ? 'estoy armando mis planes, te cuento por aquí' : co.planes.map((p) => '${p.nombre} (${p.precioTxt})').join(', ');
+                          c.text = 'Estos son mis planes: $planes. ¿Qué objetivo y disponibilidad tienes?';
                           c.selection = TextSelection.collapsed(offset: c.text.length);
                         }), leading: const Icon(Icons.bolt, size: 16, color: slate)),
                   ),

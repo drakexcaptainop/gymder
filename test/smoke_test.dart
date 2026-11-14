@@ -61,6 +61,7 @@ void main() {
     await t.tap(find.byIcon(Icons.arrow_upward));
     await t.pumpAndSettle();
     expect(find.text('Perfil del entrenador'), findsOneWidget);
+    expect(find.text('Planes y precios'), findsOneWidget);
     await t.tap(find.byIcon(Icons.chevron_left));
     await t.pumpAndSettle();
 
@@ -68,8 +69,6 @@ void main() {
     await t.tap(find.text('Mensajes').last);
     await t.pumpAndSettle();
     expect(find.text('Valeria Ríos'), findsOneWidget);
-    await t.tap(find.text('Solicitudes').last);
-    await t.pumpAndSettle();
     expect(find.text('Esperando respuesta'), findsOneWidget);
     await logout(t);
 
@@ -77,14 +76,17 @@ void main() {
     expect(first.id, 'c1');
     await login(t, 'valeria@demo.com');
     expect(find.text('Descubrir'), findsNothing);
-    await t.tap(find.text('Solicitudes').last);
+    await t.tap(find.text('Mensajes').last);
     await t.pumpAndSettle();
     expect(find.text('Camila Torres'), findsOneWidget);
     expect(find.text('Por responder'), findsNWidgets(2)); // Camila y Diego
     await t.tap(find.text('Camila Torres'));
     await t.pumpAndSettle();
+    // Desde el chat el entrenador puede ver el perfil de quien le escribió.
+    await t.tap(find.byIcon(Icons.person_outline));
+    await t.pumpAndSettle();
     expect(find.text('Perfil del usuario'), findsOneWidget);
-    await t.tap(find.text('Responder en el chat'));
+    await t.tap(find.byIcon(Icons.chevron_left));
     await t.pumpAndSettle();
     await t.tap(find.text('Responder con mis planes'));
     await t.pump();
@@ -93,8 +95,7 @@ void main() {
     expect(req.messages.length, 2);
     expect(req.messages.last.author, AppRole.coach);
     expect(req.messages.last.text, contains('Estos son mis planes'));
-    await t.tap(find.byIcon(Icons.chevron_left));
-    await t.pumpAndSettle();
+    expect(req.messages.last.text, contains('¤ 120 / mes'));
     await t.tap(find.byIcon(Icons.chevron_left));
     await t.pumpAndSettle();
     await logout(t);
@@ -128,7 +129,8 @@ void main() {
     await t.tap(find.text('Crear cuenta').last);
     await t.pumpAndSettle();
     expect(app.isCoach, isTrue);
-    expect(find.text('Solicitudes'), findsWidgets);
+    expect(find.text('Mensajes'), findsWidgets);
+    expect(find.text('Solicitudes'), findsNothing);
     expect(coaches.any((c) => c.nombre == 'Nuevo Entrenador'), isTrue);
   });
 
@@ -141,5 +143,37 @@ void main() {
     await t.pumpWidget(const GymderApp());
     final w = t.getSize(find.byType(Scaffold).first).width;
     expect(w, lessThanOrEqualTo(phoneMaxWidth));
+  });
+
+  testWidgets('el entrenador publica un plan con precio y se ve en su perfil', (t) async {
+    ignoreOverflow();
+    t.view.physicalSize = const Size(900, 1800);
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
+    app.logout();
+    await t.pumpWidget(const GymderApp());
+    await login(t, 'mateo@demo.com');
+    await t.tap(find.text('Cuenta').last);
+    await t.pumpAndSettle();
+    await t.tap(find.text('Mis planes y precios'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Nuevo plan'));
+    await t.pumpAndSettle();
+    final f = find.byType(TextField);
+    await t.enterText(f.at(0), 'Plan Premium');
+    await t.enterText(f.at(1), '250');
+    await t.enterText(f.at(2), 'Seguimiento diario');
+    await t.pump();
+    await t.tap(find.text('Guardar'));
+    await t.pumpAndSettle();
+    expect(find.text('Plan Premium'), findsOneWidget);
+    expect(find.text('¤ 250 / mes'), findsOneWidget);
+    expect(coachById('c2').planes.any((p) => p.nombre == 'Plan Premium' && p.precio == 250), isTrue);
+    await t.tap(find.byIcon(Icons.chevron_left));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Mi perfil de entrenador'));
+    await t.pumpAndSettle();
+    await t.scrollUntilVisible(find.text('Plan Premium'), 300);
+    expect(find.text('Plan Premium'), findsOneWidget);
   });
 }
