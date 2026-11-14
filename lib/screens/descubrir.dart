@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../data.dart';
+import '../core_data.dart';
 import '../state.dart';
 import '../ui.dart';
-import 'flows.dart';
+import 'perfiles.dart';
 
 class DescubrirTab extends StatefulWidget {
   const DescubrirTab({super.key});
@@ -27,13 +27,17 @@ class _DescubrirTabState extends State<DescubrirTab> {
     });
     Timer(const Duration(milliseconds: 300), () {
       if (!mounted) return;
-      app.markSeen(top.id, fav: dir == 'right');
+      if (dir == 'right') {
+        app.sendRequest(top.id);
+      } else {
+        app.discard(top.id);
+      }
       setState(() {
         dx = 0;
         dy = 0;
         fly = null;
       });
-      if (dir == 'right') toast(context, '${top.nombre} guardado en favoritos');
+      if (dir == 'right') toast(context, 'Solicitud enviada a ${top.nombre}');
     });
   }
 
@@ -84,11 +88,6 @@ class _DescubrirTabState extends State<DescubrirTab> {
             RoundBtn(Icons.tune, () => _filters(context)),
             if (f.count > 0) Positioned(right: -4, top: -4, child: _badge('${f.count}', cyan)),
           ]),
-          const SizedBox(width: 8),
-          Stack(clipBehavior: Clip.none, children: [
-            RoundBtn(Icons.favorite_border, () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FavoritosScreen()))),
-            if (app.favs.isNotEmpty) Positioned(right: -4, top: -4, child: _badge('${app.favs.length}', lime)),
-          ]),
         ]),
       ),
       if (f.count > 0)
@@ -111,10 +110,7 @@ class _DescubrirTabState extends State<DescubrirTab> {
                     const SizedBox(height: 6),
                     Text('Ajusta los filtros o vuelve a empezar.', style: ts(14, c: slate)),
                     const SizedBox(height: 16),
-                    Btn('Volver a empezar', () {
-                      app.seen.clear();
-                      app.notify();
-                    }, bg: lime, fg: navy),
+                    Btn('Volver a empezar', app.resetDeck, bg: lime, fg: navy),
                     if (f.count > 0) TextButton(onPressed: () => app.applyFilters(Filters()), child: const Text('Quitar filtros')),
                   ]),
                 ),
@@ -159,7 +155,7 @@ class _DescubrirTabState extends State<DescubrirTab> {
                           transformAlignment: Alignment.center,
                           child: Stack(children: [
                             _CoachCard(top),
-                            Positioned(top: 24, left: 20, child: _stamp('GUARDAR', lime, (dx / 90).clamp(0.0, 1.0))),
+                            Positioned(top: 24, left: 20, child: _stamp('SOLICITAR', lime, (dx / 90).clamp(0.0, 1.0))),
                             Positioned(top: 24, right: 20, child: _stamp('PASAR', slate, (-dx / 90).clamp(0.0, 1.0))),
                             Positioned(top: 24, left: 0, right: 0, child: Center(child: _stamp('VER PERFIL', cyan, dx.abs() < 60 ? (-dy / 90).clamp(0.0, 1.0) : 0))),
                           ]),
@@ -176,7 +172,7 @@ class _DescubrirTabState extends State<DescubrirTab> {
                       const SizedBox(width: 20),
                       _circle(Icons.arrow_upward, cyan, navy, () => openProfile(top), size: 52),
                       const SizedBox(width: 20),
-                      _circle(Icons.favorite, lime, navy, () => swipe('right')),
+                      _circle(Icons.send_rounded, lime, navy, () => swipe('right')),
                     ]),
                   ),
                 ]),

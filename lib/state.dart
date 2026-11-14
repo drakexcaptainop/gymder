@@ -1,15 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'data.dart';
-
-class Active {
-  final String coachId, pkgId;
-  const Active(this.coachId, this.pkgId);
-}
-
-class Receipt {
-  final String coachId, pkgId, num;
-  const Receipt(this.coachId, this.pkgId, this.num);
-}
+import 'core_data.dart';
 
 class Filters {
   List<String> esp;
@@ -19,152 +9,155 @@ class Filters {
   Filters copy() => Filters([...esp], mod);
 }
 
-String dateKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
+String two(int n) => n.toString().padLeft(2, '0');
+String nowHm() {
+  final d = DateTime.now();
+  return '${two(d.hour)}:${two(d.minute)}';
+}
 
 class AppState extends ChangeNotifier {
-  int tab = 3; // descubrir
-  bool paid = false;
-  Active? active;
-  int sessionsLeft = 0;
+  final List<Account> accounts = seedAccounts();
+  final List<UserProfile> users = seedUsers();
+  final List<ContactRequest> requests = seedRequests();
 
-  // Inicio
-  DateTime viewMonth = DateTime(today.year, today.month);
-  DateTime selDate = today;
-  EvTipo? evFilter;
-  final Map<String, List<Ev>> userEvents = {};
-  String? newEvId;
-  final List<Ex> customEx = [];
+  Account? session;
+  int tab = 0;
+  int _seq = 10;
 
-  // Comidas
-  int week = 0, mDay = 3;
-  Map<int, List<List<List<PlanItem>>>> plan = genPlan();
-  final Set<String> expanded = {};
-  final Set<String> shopChecked = {};
-  String? justMeal;
-
-  // Rutinas
-  String muscle = 'Todos';
-  List<ExCfg> routineList = routine();
-
-  // Descubrir
-  final List<String> seen = [];
-  final List<String> favs = [];
+  // Descubrir (coaches ya descartados, por usuario)
+  final Map<String, Set<String>> seenBy = {};
   Filters filters = Filters();
 
-  // Paquetes / pago
-  String coachId = 'c1';
-  List<Pkg> pkgs = initialPkgs();
-  String? selPkg;
-  bool renew = false;
-  Receipt receipt = const Receipt('c1', 'p1b', 'SIM-2026-0041');
-  int rcount = 0;
+  // ── Sesión
+  bool get loggedIn => session != null;
+  AppRole? get role => session?.role;
+  bool get isCoach => role == AppRole.coach;
+  UserProfile? get me => session?.role == AppRole.user ? userById(session!.profileId) : null;
+  Coach? get meCoach => session?.role == AppRole.coach ? coachById(session!.profileId) : null;
+  String get myName => isCoach ? meCoach!.nombre : (me?.nombre ?? '');
 
-  // Chat
-  List<Msg> msgs = initialMsgs();
+  UserProfile userById(String id) => users.firstWhere((u) => u.id == id);
 
-  Coach? get activeCoach => active == null ? null : coachById(active!.coachId);
-  Pkg? get activePkg => active == null ? null : pkgs.firstWhere((p) => p.id == active!.pkgId);
-  bool get nearEnd => paid && sessionsLeft <= 3;
+  /// Devuelve null si todo va bien, o el mensaje de error.
+  String? login(String email, String password) {
+    final e = email.trim().toLowerCase();
+    final a = accounts.where((x) => x.email == e).firstOrNull;
+    if (a == null || a.password != password) return 'Correo o contraseña incorrectos';
+    session = a;
+    tab = 0;
+    notifyListeners();
+    return null;
+  }
 
-  void notify() => notifyListeners();
+  void logout() {
+    session = null;
+    tab = 0;
+    filters = Filters();
+    notifyListeners();
+  }
 
-  // ── tabs
+  String? register({required AppRole role, required String nombre, required String email, required String password, String? especialidad, String? modalidad}) {
+    final e = email.trim().toLowerCase();
+    if (nombre.trim().isEmpty || !e.contains('@') || password.length < 6) return 'Completa nombre, un correo válido y una contraseña de 6+ caracteres';
+    if (accounts.any((a) => a.email == e)) return 'Ya existe una cuenta con ese correo';
+    final id = '${role == AppRole.coach ? 'c' : 'u'}${_seq++}';
+    final ini = initialsOf(nombre);
+    if (role == AppRole.coach) {
+      final esp = especialidad ?? especialidades.first;
+      coaches.add(Coach(
+        id: id, nombre: nombre.trim(), ini: ini, especialidad: esp, modalidad: modalidad ?? 'Online', exp: 1, lugar: 'Por definir',
+        resumen: 'Coach de $esp.', bio: 'Completa tu bio para que los usuarios te conozcan mejor.', enfoque: 'Por definir con cada alumno.',
+        tags: [esp], servicios: ['Entrenamiento de $esp'], precioOrientativo: 'A convenir por chat',
+      ));
+    } else {
+      users.add(UserProfile(id: id, nombre: nombre.trim(), ini: ini, objetivo: 'Por definir', nivel: niveles.first, disponibilidad: 'Por definir', notas: ''));
+    }
+    session = Account(id: 'a${_seq++}', email: e, password: password, role: role, profileId: id);
+    accounts.add(session!);
+    tab = 0;
+    notifyListeners();
+    return null;
+  }
+
+  void saveUser({required String nombre, required String objetivo, required String nivel, required String disponibilidad, required String notas}) {
+    final u = me;
+    if (u == null) return;
+    u.nombre = nombre.trim().isEmpty ? u.nombre : nombre.trim();
+    u.ini = initialsOf(u.nombre);
+    u.objetivo = objetivo.trim();
+    u.nivel = nivel;
+    u.disponibilidad = disponibilidad.trim();
+    u.notas = notas.trim();
+    notifyListeners();
+  }
+
   void setTab(int t) {
     tab = t;
     notifyListeners();
   }
 
-  // ── Inicio
-  List<Ev> eventsFor(DateTime d) =>
-      [...baseEvents(d, paid, activeCoach), ...(userEvents[dateKey(d)] ?? [])];
-  List<Ev> filteredEvents(DateTime d) =>
-      eventsFor(d).where((e) => evFilter == null || e.tipo == evFilter).toList()..sort((a, b) => a.hora.compareTo(b.hora));
-
-  void shiftMonth(int dir) {
-    viewMonth = DateTime(viewMonth.year, viewMonth.month + dir);
-    selDate = (viewMonth.year == today.year && viewMonth.month == today.month) ? today : viewMonth;
-    notifyListeners();
-  }
-
-  void addEvent(DateTime date, Ev ev) {
-    userEvents.putIfAbsent(dateKey(date), () => []).add(ev);
-    selDate = date;
-    viewMonth = DateTime(date.year, date.month);
-    newEvId = ev.id;
-    if (evFilter != null && evFilter != ev.tipo) evFilter = null;
-    notifyListeners();
-  }
-
-  // ── Comidas
-  void addToPlan(int w, int d, int slot, PlanItem it) {
-    plan[w]![d][slot].add(it);
-    mDay = d;
-    justMeal = it.uid;
-    notifyListeners();
-  }
-
   // ── Descubrir
+  Set<String> get _seen => seenBy.putIfAbsent(session?.profileId ?? '', () => {});
+
+  ContactRequest? requestBetween(String userId, String coachId) =>
+      requests.where((r) => r.userId == userId && r.coachId == coachId).firstOrNull;
+
   List<Coach> get deck => coaches
       .where((c) =>
-          !seen.contains(c.id) &&
+          !_seen.contains(c.id) &&
+          (me == null || requestBetween(me!.id, c.id) == null) &&
           (filters.esp.isEmpty || filters.esp.contains(c.especialidad)) &&
           (filters.mod == 'Todas' || c.modalidad == filters.mod))
       .toList();
 
-  void markSeen(String id, {bool fav = false}) {
-    seen.add(id);
-    if (fav && !favs.contains(id)) favs.add(id);
+  void discard(String coachId) {
+    _seen.add(coachId);
     notifyListeners();
   }
 
-  void toggleFav(String id) {
-    favs.contains(id) ? favs.remove(id) : favs.add(id);
+  void resetDeck() {
+    _seen.clear();
     notifyListeners();
   }
 
   void applyFilters(Filters f) {
     filters = f.copy();
-    seen.clear();
+    _seen.clear();
     notifyListeners();
   }
 
-  // ── Pago
-  void completePayment() {
-    final pkg = pkgs.firstWhere((p) => p.id == selPkg);
-    final n = rcount + 42;
-    active = Active(coachId, pkg.id);
-    sessionsLeft = pkg.sesiones;
-    if (!paid) msgs = initialMsgs();
-    paid = true;
-    renew = false;
-    receipt = Receipt(coachId, pkg.id, 'SIM-2026-${n.toString().padLeft(4, '0')}');
-    rcount++;
+  // ── Solicitudes
+  /// Swipe a la derecha / botón "Enviar solicitud". Devuelve false si ya existía.
+  bool sendRequest(String coachId) {
+    final u = me;
+    if (u == null || requestBetween(u.id, coachId) != null) return false;
+    requests.insert(0, ContactRequest(id: 'r${_seq++}', userId: u.id, coachId: coachId, createdAt: DateTime.now()));
+    _seen.add(coachId);
+    notifyListeners();
+    return true;
+  }
+
+  /// Solicitudes visibles para la sesión actual (enviadas si es usuario, recibidas si es coach).
+  List<ContactRequest> get myRequests => requests.where((r) => isCoach ? r.coachId == session?.profileId : r.userId == session?.profileId).toList();
+  List<ContactRequest> get myChats => myRequests.where((r) => r.status == ContactStatus.accepted).toList();
+  int get pendingCount => myRequests.where((r) => r.status == ContactStatus.pending).length;
+
+  void respond(String requestId, bool accept) {
+    final r = requests.firstWhere((x) => x.id == requestId);
+    if (!isCoach || r.status != ContactStatus.pending) return;
+    r.status = accept ? ContactStatus.accepted : ContactStatus.rejected;
+    if (accept) {
+      r.messages.add(ChatMessage(AppRole.coach, '¡Hola ${userById(r.userId).nombre.split(' ').first}! Acepté tu solicitud. Conversemos sobre tu objetivo, el plan, la mensualidad y las condiciones.', nowHm()));
+    }
     notifyListeners();
   }
 
   // ── Chat
-  void sendMsg(String t) {
-    if (!paid || t.trim().isEmpty) return;
-    msgs = [...msgs, Msg(true, t.trim(), 'Ahora')];
+  void sendMessage(String requestId, String text) {
+    final r = requests.firstWhere((x) => x.id == requestId);
+    if (session == null || r.status != ContactStatus.accepted || text.trim().isEmpty) return;
+    r.messages.add(ChatMessage(session!.role, text.trim(), nowHm()));
     notifyListeners();
-    Future.delayed(const Duration(milliseconds: 1400), () {
-      msgs = [...msgs, Msg(false, 'Recibido. Lo revisamos en nuestra próxima sesión.', 'Ahora')];
-      notifyListeners();
-    });
-  }
-
-  // ── Paquetes (editor del coach)
-  void savePkg(Pkg p) {
-    final i = pkgs.indexWhere((x) => x.id == p.id);
-    i >= 0 ? pkgs[i] = p : pkgs.add(p);
-    notifyListeners();
-  }
-
-  Ex? exGet(String id) {
-    for (final e in [...exercises, ...customEx]) {
-      if (e.id == id) return e;
-    }
-    return null;
   }
 }
 

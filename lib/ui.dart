@@ -254,6 +254,7 @@ Widget field(TextEditingController c, String hint, {ValueChanged<String>? onChan
       onChanged: onChanged,
       keyboardType: type,
       maxLength: maxLen,
+      obscureText: obscure,
       style: ts(15),
       decoration: InputDecoration(
         counterText: '',
@@ -266,25 +267,3 @@ Widget field(TextEditingController c, String hint, {ValueChanged<String>? onChan
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: cyan, width: 2)),
       ),
     );
-
-IconData eqIcon(String eq) => switch (eq) {
-      'barra' => Icons.fitness_center,
-      'mancuernas' => Icons.fitness_center,
-      'kettlebell' => Icons.sports_gymnastics,
-      'corporal' => Icons.accessibility_new,
-      'smith' || 'maquina' => Icons.precision_manufacturing_outlined,
-      'polea' => Icons.settings_input_component,
-      'banda' => Icons.waves,
-      _ => Icons.fitness_center,
-    };
-
-Widget tipoMarker(String t) {
-  switch (t) {
-    case 'ejercicio':
-      return Container(width: 6, height: 6, decoration: BoxDecoration(color: navy, borderRadius: BorderRadius.circular(3)));
-    case 'comida':
-      return Container(width: 7, height: 7, decoration: BoxDecoration(color: lime, border: Border.all(color: navy), borderRadius: BorderRadius.circular(2)));
-    default:
-      return Transform.rotate(angle: .785, child: Container(width: 6, height: 6, color: cyan));
-  }
-}
