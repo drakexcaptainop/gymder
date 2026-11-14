@@ -34,11 +34,11 @@ class CuentaTab extends StatelessWidget {
                     Text(s.email, style: ts(13, c: soft)),
                   ]),
                 ),
-                Tag(coach ? 'Coach' : 'Usuario', bg: lime),
+                Tag(coach ? 'Entrenador' : 'Usuario', bg: lime),
               ]),
             ),
             const SizedBox(height: 12),
-            _item(Icons.person_outline, coach ? 'Mi perfil de coach' : 'Mi perfil', () => coach ? openCoachProfile(context, s.profileId) : openUserProfile(context, s.profileId)),
+            _item(Icons.person_outline, coach ? 'Mi perfil de entrenador' : 'Mi perfil', () => coach ? openCoachProfile(context, s.profileId) : openUserProfile(context, s.profileId)),
             if (!coach) _item(Icons.edit_outlined, 'Editar perfil', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditarPerfilScreen()))),
             const SizedBox(height: 12),
             Btn('Cerrar sesión', app.logout, outlined: true, icon: Icons.logout),
@@ -97,7 +97,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
           label('Disponibilidad'),
           field(disp, 'Ej. Lun, mié y vie por la tarde', maxLen: 80),
           label('Notas (lesiones, preferencias)'),
-          field(notas, 'Notas para tu coach', maxLen: 120),
+          field(notas, 'Notas para tu entrenador', maxLen: 120),
         ]),
       );
 }

@@ -79,7 +79,8 @@ List<Account> seedAccounts() => [
 List<ContactRequest> seedRequests() {
   final now = DateTime.now();
   return [
-    ContactRequest(id: 'r1', userId: 'u2', coachId: 'c1', createdAt: now.subtract(const Duration(hours: 5))),
+    ContactRequest(id: 'r1', userId: 'u2', coachId: 'c1', createdAt: now.subtract(const Duration(hours: 5)), status: ContactStatus.accepted)
+      ..messages.add(const ChatMessage(AppRole.user, '¡Hola! ¿Qué planes tienes disponibles y cuánto cuestan?', '08:40')),
     ContactRequest(id: 'r2', userId: 'u2', coachId: 'c2', createdAt: now.subtract(const Duration(days: 1)), status: ContactStatus.accepted)
       ..messages.addAll(const [
         ChatMessage(AppRole.coach, '¡Hola Diego! Acepté tu solicitud. Cuéntame cómo te gustaría entrenar.', '09:12'),

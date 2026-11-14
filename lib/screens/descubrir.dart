@@ -28,7 +28,7 @@ class _DescubrirTabState extends State<DescubrirTab> {
     Timer(const Duration(milliseconds: 300), () {
       if (!mounted) return;
       if (dir == 'right') {
-        app.sendRequest(top.id);
+        app.contact(top.id);
       } else {
         app.discard(top.id);
       }
@@ -37,7 +37,7 @@ class _DescubrirTabState extends State<DescubrirTab> {
         dy = 0;
         fly = null;
       });
-      if (dir == 'right') toast(context, 'Solicitud enviada a ${top.nombre}');
+      if (dir == 'right') toast(context, 'Le preguntaste a ${top.nombre} por sus planes. Revisa Mensajes');
     });
   }
 
@@ -80,7 +80,7 @@ class _DescubrirTabState extends State<DescubrirTab> {
         child: Row(children: [
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Encuentra a tu coach', style: ts(13, c: slate, w: FontWeight.w500)),
+              Text('Encuentra a tu entrenador', style: ts(13, c: slate, w: FontWeight.w500)),
               Text('Descubrir', style: ts(30, w: FontWeight.w600)),
             ]),
           ),
@@ -155,7 +155,7 @@ class _DescubrirTabState extends State<DescubrirTab> {
                           transformAlignment: Alignment.center,
                           child: Stack(children: [
                             _CoachCard(top),
-                            Positioned(top: 24, left: 20, child: _stamp('SOLICITAR', lime, (dx / 90).clamp(0.0, 1.0))),
+                            Positioned(top: 24, left: 20, child: _stamp('ESCRIBIR', lime, (dx / 90).clamp(0.0, 1.0))),
                             Positioned(top: 24, right: 20, child: _stamp('PASAR', slate, (-dx / 90).clamp(0.0, 1.0))),
                             Positioned(top: 24, left: 0, right: 0, child: Center(child: _stamp('VER PERFIL', cyan, dx.abs() < 60 ? (-dy / 90).clamp(0.0, 1.0) : 0))),
                           ]),

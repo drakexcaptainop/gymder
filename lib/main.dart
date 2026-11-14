@@ -8,6 +8,8 @@ import 'screens/solicitudes.dart';
 import 'state.dart';
 import 'ui.dart';
 
+const phoneMaxWidth = 412.0;
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
@@ -21,6 +23,29 @@ class GymderApp extends StatelessWidget {
         title: 'Gymder',
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
+        // App móvil: en pantallas anchas (navegador/escritorio) se muestra siempre en un marco
+        // de teléfono centrado; en un móvil real ocupa toda la pantalla.
+        builder: (context, child) {
+          final mq = MediaQuery.of(context);
+          if (mq.size.width <= phoneMaxWidth) return child!;
+          final h = mq.size.height > 900 ? 900.0 : mq.size.height;
+          final framed = mq.size.height > 760;
+          return Container(
+            color: const Color(0xFFDDE3EC),
+            alignment: Alignment.center,
+            child: Container(
+              width: phoneMaxWidth,
+              height: framed ? h - 32 : h,
+              decoration: BoxDecoration(
+                color: white,
+                borderRadius: BorderRadius.circular(framed ? 32 : 0),
+                boxShadow: [BoxShadow(color: navy.withValues(alpha: .18), blurRadius: 40, offset: const Offset(0, 16))],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: MediaQuery(data: mq.copyWith(size: Size(phoneMaxWidth, framed ? h - 32 : h)), child: child!),
+            ),
+          );
+        },
         // La raíz cambia sola entre Bienvenida y Shell según la sesión.
         home: ListenableBuilder(listenable: app, builder: (_, _) => app.loggedIn ? const Shell() : const WelcomeScreen()),
       );

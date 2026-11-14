@@ -11,13 +11,13 @@ class SolicitudesTab extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: app,
         builder: (context, _) {
-          final list = app.myRequests;
+          final list = [...app.myRequests]..sort((a, b) => (app.awaitingCoach(b) ? 1 : 0) - (app.awaitingCoach(a) ? 1 : 0));
           final coach = app.isCoach;
           return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(coach ? 'Usuarios que quieren entrenar contigo' : 'Coaches a los que escribiste', style: ts(13, c: slate, w: FontWeight.w500)),
+                Text(coach ? 'Usuarios que te escribieron' : 'Coaches a los que contactaste', style: ts(13, c: slate, w: FontWeight.w500)),
                 Text('Solicitudes', style: ts(30, w: FontWeight.w600)),
               ]),
             ),
@@ -31,7 +31,7 @@ class SolicitudesTab extends StatelessWidget {
                           const SizedBox(height: 12),
                           Text('Sin solicitudes', style: ts(18, w: FontWeight.w600)),
                           const SizedBox(height: 6),
-                          Text(coach ? 'Cuando un usuario te envíe una solicitud aparecerá aquí.' : 'Desliza a la derecha en Descubrir para enviar una solicitud.', style: ts(14, c: slate, h: 1.4), textAlign: TextAlign.center),
+                          Text(coach ? 'Cuando un usuario te escriba aparecerá aquí para que le respondas.' : 'Desliza a la derecha en Descubrir para preguntarle a un coach por sus planes.', style: ts(14, c: slate, h: 1.4), textAlign: TextAlign.center),
                         ]),
                       ),
                     )
@@ -69,26 +69,10 @@ class _RequestCard extends StatelessWidget {
               ]),
             ),
             const SizedBox(width: 8),
-            statusTag(r.status),
+            replyTag(r),
           ]),
-          if (coach && r.status == ContactStatus.pending) ...[
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: Btn('Rechazar', () {
-                app.respond(r.id, false);
-                toast(context, 'Solicitud rechazada');
-              }, outlined: true, height: 44)),
-              const SizedBox(width: 10),
-              Expanded(child: Btn('Aceptar', () {
-                app.respond(r.id, true);
-                toast(context, 'Aceptada. Ya pueden chatear');
-              }, bg: lime, fg: navy, height: 44)),
-            ]),
-          ],
-          if (r.status == ContactStatus.accepted) ...[
-            const SizedBox(height: 12),
-            SizedBox(width: double.infinity, child: Btn('Abrir chat', () => openChat(context, r.id), bg: lime, fg: navy, height: 44, icon: Icons.chat_bubble_outline)),
-          ],
+          const SizedBox(height: 12),
+          SizedBox(width: double.infinity, child: Btn(coach && app.awaitingCoach(r) ? 'Responder' : 'Abrir chat', () => openChat(context, r.id), bg: lime, fg: navy, height: 44, icon: Icons.chat_bubble_outline)),
         ]),
       ),
     );

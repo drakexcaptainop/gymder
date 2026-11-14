@@ -126,36 +126,36 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Solicitudes
-  /// Swipe a la derecha / botón "Enviar solicitud". Devuelve false si ya existía.
-  bool sendRequest(String coachId) {
+  // ── Contacto
+  static const preguntaPlanes = '¡Hola! ¿Qué planes tienes disponibles y cuánto cuestan?';
+
+  /// Swipe a la derecha / "Preguntar por sus planes": abre el chat al instante con la
+  /// pregunta por los planes. No hay aprobación previa. Devuelve la conversación.
+  ContactRequest? contact(String coachId) {
     final u = me;
-    if (u == null || requestBetween(u.id, coachId) != null) return false;
-    requests.insert(0, ContactRequest(id: 'r${_seq++}', userId: u.id, coachId: coachId, createdAt: DateTime.now()));
+    if (u == null) return null;
+    var r = requestBetween(u.id, coachId);
+    if (r == null) {
+      r = ContactRequest(id: 'r${_seq++}', userId: u.id, coachId: coachId, createdAt: DateTime.now(), status: ContactStatus.accepted)
+        ..messages.add(ChatMessage(AppRole.user, preguntaPlanes, nowHm()));
+      requests.insert(0, r);
+    }
     _seen.add(coachId);
     notifyListeners();
-    return true;
+    return r;
   }
 
-  /// Solicitudes visibles para la sesión actual (enviadas si es usuario, recibidas si es coach).
+  /// Conversaciones de la sesión actual (con el coach si es usuario, con usuarios si es coach).
   List<ContactRequest> get myRequests => requests.where((r) => isCoach ? r.coachId == session?.profileId : r.userId == session?.profileId).toList();
-  List<ContactRequest> get myChats => myRequests.where((r) => r.status == ContactStatus.accepted).toList();
-  int get pendingCount => myRequests.where((r) => r.status == ContactStatus.pending).length;
+  List<ContactRequest> get myChats => myRequests;
 
-  void respond(String requestId, bool accept) {
-    final r = requests.firstWhere((x) => x.id == requestId);
-    if (!isCoach || r.status != ContactStatus.pending) return;
-    r.status = accept ? ContactStatus.accepted : ContactStatus.rejected;
-    if (accept) {
-      r.messages.add(ChatMessage(AppRole.coach, '¡Hola ${userById(r.userId).nombre.split(' ').first}! Acepté tu solicitud. Conversemos sobre tu objetivo, el plan, la mensualidad y las condiciones.', nowHm()));
-    }
-    notifyListeners();
-  }
-
+  /// Conversaciones en las que el último mensaje es del usuario, es decir, el coach debe responder.
+  bool awaitingCoach(ContactRequest r) => r.messages.isNotEmpty && r.messages.last.author == AppRole.user;
+  int get pendingCount => myRequests.where(awaitingCoach).length;
   // ── Chat
   void sendMessage(String requestId, String text) {
     final r = requests.firstWhere((x) => x.id == requestId);
-    if (session == null || r.status != ContactStatus.accepted || text.trim().isEmpty) return;
+    if (session == null || text.trim().isEmpty) return;
     r.messages.add(ChatMessage(session!.role, text.trim(), nowHm()));
     notifyListeners();
   }

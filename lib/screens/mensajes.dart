@@ -43,7 +43,7 @@ class MensajesTab extends StatelessWidget {
                           const SizedBox(height: 12),
                           Text('Aún no tienes chats', style: ts(18, w: FontWeight.w600)),
                           const SizedBox(height: 6),
-                          Text(app.isCoach ? 'Acepta una solicitud para empezar a conversar.' : 'El chat se habilita cuando un coach acepta tu solicitud.', style: ts(14, c: slate, h: 1.4), textAlign: TextAlign.center),
+                          Text(app.isCoach ? 'Cuando un usuario te escriba aparecerá aquí para que le respondas.' : 'Desliza a la derecha en Descubrir para preguntarle a un entrenador por sus planes.', style: ts(14, c: slate, h: 1.4), textAlign: TextAlign.center),
                         ]),
                       ),
                     )
@@ -105,7 +105,7 @@ class _ChatScreenState extends State<ChatScreen> {
           final mine = app.role;
           return SubScreen(
             title: other.$1,
-            subtitle: 'Chat · ${app.isCoach ? 'usuario' : 'coach'}',
+            subtitle: 'Chat · ${app.isCoach ? 'usuario' : 'entrenador'}',
             actions: [
               RoundBtn(Icons.person_outline, () => app.isCoach ? openUserProfile(context, r.userId, requestId: r.id) : openCoachProfile(context, r.coachId)),
             ],
@@ -139,6 +139,18 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                 ]),
               ),
+              if (app.isCoach && app.awaitingCoach(r))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Pill('Responder con mis planes', false, () => setState(() {
+                          final co = app.meCoach!;
+                          c.text = 'Estos son mis planes: ${co.servicios.join(', ')}. Precio orientativo: ${co.precioOrientativo}. ¿Qué objetivo y disponibilidad tienes?';
+                          c.selection = TextSelection.collapsed(offset: c.text.length);
+                        }), leading: const Icon(Icons.bolt, size: 16, color: slate)),
+                  ),
+                ),
               Container(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                 decoration: const BoxDecoration(border: Border(top: BorderSide(color: soft))),

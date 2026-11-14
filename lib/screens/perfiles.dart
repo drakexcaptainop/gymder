@@ -10,17 +10,11 @@ void openCoachProfile(BuildContext c, String id) =>
 void openUserProfile(BuildContext c, String id, {String? requestId}) =>
     Navigator.of(c).push(MaterialPageRoute(builder: (_) => PerfilUsuarioScreen(userId: id, requestId: requestId)));
 
-String statusLabel(ContactStatus s) => switch (s) {
-      ContactStatus.pending => 'Pendiente',
-      ContactStatus.accepted => 'Aceptada',
-      ContactStatus.rejected => 'Rechazada',
-    };
-
-Widget statusTag(ContactStatus s) => switch (s) {
-      ContactStatus.pending => Tag('Pendiente', bg: cyanTint),
-      ContactStatus.accepted => Tag('Aceptada', bg: lime),
-      ContactStatus.rejected => Tag('Rechazada', bg: soft, fg: slate),
-    };
+/// Etiqueta de la conversación: indica quién debe responder (no hay estado "pendiente de aprobación").
+Widget replyTag(ContactRequest r) {
+  if (!app.awaitingCoach(r)) return const Tag('Respondida', bg: lime);
+  return Tag(app.isCoach ? 'Por responder' : 'Esperando respuesta', bg: cyanTint);
+}
 
 Widget _rows(List<(String, String)> rows) => Container(
       decoration: box(),
@@ -53,18 +47,16 @@ class PerfilCoachScreen extends StatelessWidget {
             bottom = SizedBox(
               width: double.infinity,
               child: req == null
-                  ? Btn('Enviar solicitud de contacto', () {
-                      app.sendRequest(c.id);
-                      toast(context, 'Solicitud enviada a ${c.nombre}');
+                  ? Btn('Preguntar por sus planes', () {
+                      final r = app.contact(c.id)!;
+                      openChat(context, r.id);
                     }, bg: lime, fg: navy, icon: Icons.send)
-                  : req.status == ContactStatus.accepted
-                      ? Btn('Abrir chat', () => openChat(context, req.id), bg: lime, fg: navy, icon: Icons.chat_bubble_outline)
-                      : Btn('Solicitud ${statusLabel(req.status).toLowerCase()}', null),
+                  : Btn('Abrir chat', () => openChat(context, req.id), bg: lime, fg: navy, icon: Icons.chat_bubble_outline),
             );
           }
           return SubScreen(
             title: c.nombre,
-            subtitle: app.meCoach?.id == c.id ? 'Tu perfil de coach' : 'Perfil del coach',
+            subtitle: app.meCoach?.id == c.id ? 'Tu perfil de entrenador' : 'Perfil del entrenador',
             bottom: bottom,
             child: ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24), children: [
               Row(children: [
@@ -92,7 +84,7 @@ class PerfilCoachScreen extends StatelessWidget {
                   child: Row(children: [const Icon(Icons.check_circle_outline, size: 20), const SizedBox(width: 10), Expanded(child: Text(s, style: ts(14)))]),
                 ),
               const SizedBox(height: 8),
-              Text('El plan, la mensualidad y las condiciones se acuerdan por chat una vez que el coach acepte tu solicitud.', style: ts(12, c: slate, h: 1.4)),
+              Text('Escríbele cuando quieras: el plan, la mensualidad y las condiciones se acuerdan por chat.', style: ts(12, c: slate, h: 1.4)),
             ]),
           );
         },
@@ -112,22 +104,7 @@ class PerfilUsuarioScreen extends StatelessWidget {
           final req = requestId == null ? null : app.requests.where((r) => r.id == requestId).firstOrNull;
           Widget? bottom;
           if (app.isCoach && req != null) {
-            if (req.status == ContactStatus.pending) {
-              bottom = Row(children: [
-                Expanded(child: Btn('Rechazar', () {
-                  app.respond(req.id, false);
-                  Navigator.of(context).pop();
-                  toast(context, 'Solicitud rechazada');
-                }, outlined: true)),
-                const SizedBox(width: 10),
-                Expanded(flex: 2, child: Btn('Aceptar', () {
-                  app.respond(req.id, true);
-                  toast(context, 'Solicitud aceptada. Ya pueden chatear');
-                }, bg: lime, fg: navy)),
-              ]);
-            } else if (req.status == ContactStatus.accepted) {
-              bottom = SizedBox(width: double.infinity, child: Btn('Abrir chat', () => openChat(context, req.id), bg: lime, fg: navy, icon: Icons.chat_bubble_outline));
-            }
+            bottom = SizedBox(width: double.infinity, child: Btn(app.awaitingCoach(req) ? 'Responder en el chat' : 'Abrir chat', () => openChat(context, req.id), bg: lime, fg: navy, icon: Icons.chat_bubble_outline));
           }
           return SubScreen(
             title: u.nombre,
@@ -143,7 +120,7 @@ class PerfilUsuarioScreen extends StatelessWidget {
                     Text('Nivel ${u.nivel.toLowerCase()}', style: ts(13, c: slate)),
                   ]),
                 ),
-                if (req != null) statusTag(req.status),
+                if (req != null) replyTag(req),
               ]),
               label('Objetivo'),
               Text(u.objetivo.isEmpty ? '—' : u.objetivo, style: ts(15, h: 1.5)),
