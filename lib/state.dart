@@ -4,9 +4,13 @@ import 'core_data.dart';
 class Filters {
   List<String> esp;
   String mod;
-  Filters([List<String>? esp, this.mod = 'Todas']) : esp = esp ?? [];
-  int get count => esp.length + (mod != 'Todas' ? 1 : 0);
-  Filters copy() => Filters([...esp], mod);
+  bool verificados; // solo entrenadores verificados
+  bool prueba; // solo quienes ofrecen clase de prueba
+  Filters([List<String>? esp, this.mod = 'Todas', this.verificados = false, this.prueba = false]) : esp = esp ?? [];
+  int get count => esp.length + (mod != 'Todas' ? 1 : 0) + (verificados ? 1 : 0) + (prueba ? 1 : 0);
+  Filters copy() => Filters([...esp], mod, verificados, prueba);
+  bool matches(Coach c) =>
+      (esp.isEmpty || esp.contains(c.especialidad)) && (mod == 'Todas' || c.modalidad == mod) && (!verificados || c.verificado) && (!prueba || c.pruebaPrecio != null);
 }
 
 String two(int n) => n.toString().padLeft(2, '0');
@@ -21,6 +25,7 @@ class AppState extends ChangeNotifier {
   final List<ContactRequest> requests = seedRequests();
   final List<Review> reviews = seedReviews();
   final List<AppNotification> notifications = seedNotifications();
+  final List<Booking> bookings = seedBookings();
 
   Account? session;
   int tab = 0;
@@ -104,12 +109,24 @@ class AppState extends ChangeNotifier {
   ContactRequest? requestBetween(String userId, String coachId) =>
       requests.where((r) => r.userId == userId && r.coachId == coachId).firstOrNull;
 
+  // Guardados (por usuario)
+  final Map<String, Set<String>> savedBy = {};
+  Set<String> get _saved => savedBy.putIfAbsent(session?.profileId ?? '', () => {});
+  bool isSaved(String coachId) => _saved.contains(coachId);
+  List<Coach> get saved => coaches.where((c) => _saved.contains(c.id)).toList();
+
+  /// Guarda (o quita de guardados) a un entrenador sin contactarlo.
+  void toggleSave(String coachId) {
+    _saved.contains(coachId) ? _saved.remove(coachId) : _saved.add(coachId);
+    notifyListeners();
+  }
+
   List<Coach> get deck => coaches
       .where((c) =>
           !_seen.contains(c.id) &&
+          !_saved.contains(c.id) &&
           (me == null || requestBetween(me!.id, c.id) == null) &&
-          (filters.esp.isEmpty || filters.esp.contains(c.especialidad)) &&
-          (filters.mod == 'Todas' || c.modalidad == filters.mod))
+          filters.matches(c))
       .toList();
 
   void discard(String coachId) {
@@ -155,6 +172,23 @@ class AppState extends ChangeNotifier {
   /// Conversaciones en las que el último mensaje es del usuario, es decir, el coach debe responder.
   bool awaitingCoach(ContactRequest r) => r.messages.isNotEmpty && r.messages.last.author == AppRole.user;
   int get pendingCount => myRequests.where(awaitingCoach).length;
+
+  /// Estado visible: pendiente (el entrenador aún no responde), activo o plan acordado.
+  ChatState chatState(ContactRequest r) {
+    if (r.agreed) return ChatState.acordado;
+    if (!r.messages.any((m) => m.author == AppRole.coach && !m.system)) return ChatState.pendiente;
+    return ChatState.activo;
+  }
+
+  /// Marca el plan como acordado y deja un aviso del sistema en el chat.
+  void agreePlan(String requestId, String resumen) {
+    final r = requests.firstWhere((x) => x.id == requestId);
+    if (r.agreed || session == null) return;
+    r.agreed = true;
+    r.messages.add(ChatMessage(session!.role, 'Plan acordado: $resumen', nowHm(), system: true));
+    _notify(isCoach ? r.userId : r.coachId, 'Plan acordado con $myName', resumen, r.id);
+    notifyListeners();
+  }
   // ── Notificaciones
   void _notify(String profileId, String titulo, String cuerpo, [String? requestId]) {
     notifications.insert(0, AppNotification(id: 'n${_seq++}', profileId: profileId, titulo: titulo, cuerpo: cuerpo, hora: nowHm(), requestId: requestId));
@@ -249,6 +283,111 @@ class AppState extends ChangeNotifier {
   }
 
   String newPlanId() => 'p${_seq++}';
+
+  // ── Agenda y reservas
+  List<Booking> get myBookings =>
+      bookings.where((b) => isCoach ? b.coachId == session?.profileId : b.userId == session?.profileId).toList()..sort((a, b) => a.inicio.compareTo(b.inicio));
+
+  bool slotTaken(String coachId, DateTime fecha, String hora) => bookings.any((b) => b.coachId == coachId && b.activa && b.fecha == fecha && b.hora == hora);
+
+  /// El usuario ya usó (o tiene en curso) su clase de prueba con este entrenador.
+  bool trialUsed(String coachId) => bookings.any((b) => b.userId == me?.id && b.coachId == coachId && b.prueba && b.activa);
+
+  /// Próximos días con horarios libres del entrenador: (día, horas libres).
+  List<(DateTime, List<String>)> freeSlots(String coachId, {int days = 14}) {
+    final c = coachById(coachId);
+    final now = DateTime.now();
+    final out = <(DateTime, List<String>)>[];
+    for (var i = 0; i < days; i++) {
+      final d = DateTime(now.year, now.month, now.day + i);
+      final dia = diasSemana[d.weekday - 1];
+      final horas = horasDia.where((h) => c.horarios.contains('$dia $h') && !slotTaken(coachId, d, h) && DateTime(d.year, d.month, d.day, int.parse(h.substring(0, 2))).isAfter(now)).toList();
+      if (horas.isNotEmpty) out.add((d, horas));
+    }
+    return out;
+  }
+
+  ContactRequest _chatWith(String userId, String coachId) {
+    var r = requestBetween(userId, coachId);
+    if (r == null) {
+      r = ContactRequest(id: 'r${_seq++}', userId: userId, coachId: coachId, createdAt: DateTime.now(), status: ContactStatus.accepted);
+      requests.insert(0, r);
+    }
+    return r;
+  }
+
+  /// Reserva una sesión. Devuelve null si el horario ya no está libre o la prueba ya se usó.
+  Booking? book(String coachId, DateTime fecha, String hora, {required bool prueba}) {
+    final u = me;
+    if (u == null || slotTaken(coachId, fecha, hora) || (prueba && trialUsed(coachId))) return null;
+    final detalle = prueba ? 'Clase de prueba' : 'Sesión de entrenamiento';
+    final b = Booking(id: 'b${_seq++}', userId: u.id, coachId: coachId, fecha: fecha, hora: hora, detalle: detalle, prueba: prueba);
+    bookings.add(b);
+    final r = _chatWith(u.id, coachId);
+    r.messages.add(ChatMessage(AppRole.user, 'Reserva solicitada: $detalle · ${b.cuando}', nowHm(), system: true));
+    _seen.add(coachId);
+    _notify(coachId, '${u.nombre} reservó ${prueba ? 'una clase de prueba' : 'una sesión'}', b.cuando, r.id);
+    notifyListeners();
+    return b;
+  }
+
+  /// El entrenador confirma o rechaza una reserva pendiente.
+  void respondBooking(String id, bool accept) {
+    final b = bookings.firstWhere((x) => x.id == id);
+    if (b.status != BookingStatus.pendiente) return;
+    b.status = accept ? BookingStatus.confirmada : BookingStatus.rechazada;
+    final r = _chatWith(b.userId, b.coachId);
+    r.messages.add(ChatMessage(AppRole.coach, accept ? 'Reserva confirmada: ${b.detalle} · ${b.cuando}' : 'Reserva no disponible: ${b.detalle} · ${b.cuando}', nowHm(), system: true));
+    _notify(b.userId, accept ? '$myName confirmó tu reserva' : '$myName no puede en ese horario', b.cuando, r.id);
+    notifyListeners();
+  }
+
+  void cancelBooking(String id) {
+    final b = bookings.firstWhere((x) => x.id == id);
+    if (!b.activa || session == null) return;
+    b.status = BookingStatus.cancelada;
+    final r = _chatWith(b.userId, b.coachId);
+    r.messages.add(ChatMessage(session!.role, 'Reserva cancelada: ${b.detalle} · ${b.cuando}', nowHm(), system: true));
+    _notify(isCoach ? b.userId : b.coachId, '$myName canceló la reserva', b.cuando, r.id);
+    notifyListeners();
+  }
+
+  // ── Entrenador: horarios, clase de prueba y credenciales
+  void toggleHorario(String slot) {
+    final c = meCoach;
+    if (c == null) return;
+    c.horarios.contains(slot) ? c.horarios.remove(slot) : c.horarios.add(slot);
+    notifyListeners();
+  }
+
+  void setPrueba(int? precio) {
+    meCoach?.pruebaPrecio = precio;
+    notifyListeners();
+  }
+
+  void addCertificado(String t) {
+    if (t.trim().isEmpty) return;
+    meCoach?.certificados.add(t.trim());
+    notifyListeners();
+  }
+
+  void removeCertificado(int i) {
+    final c = meCoach;
+    if (c == null) return;
+    c.certificados.removeAt(i);
+    if (c.certificados.isEmpty) c.verificado = false;
+    notifyListeners();
+  }
+
+  /// Demo: se verifica al instante si hay al menos un certificado (en producción lo revisaría una persona).
+  String? requestVerification() {
+    final c = meCoach;
+    if (c == null || c.certificados.isEmpty) return 'Agrega al menos un certificado o título';
+    c.verificado = true;
+    _notify(c.id, 'Tu perfil está verificado', 'Ahora aparece con el sello Verificado.');
+    notifyListeners();
+    return null;
+  }
 
   // ── Chat
   void sendMessage(String requestId, String text) {

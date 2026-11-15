@@ -26,7 +26,7 @@ class _CambiarPasswordScreenState extends State<CambiarPasswordScreen> {
   Widget build(BuildContext context) => SubScreen(
         title: 'Cambiar contraseña',
         subtitle: 'Seguridad',
-        bottom: SizedBox(width: double.infinity, child: Btn('Guardar contraseña', submit, bg: lime, fg: navy)),
+        bottom: SizedBox(width: double.infinity, child: Btn('Guardar contraseña', submit, fg: ink)),
         child: ListView(padding: const EdgeInsets.all(16), children: [
           label('Contraseña actual'),
           field(actual, 'Tu contraseña actual', obscure: true, icon: Icons.lock_outline, onChanged: (_) => setState(() => error = null)),
@@ -34,7 +34,7 @@ class _CambiarPasswordScreenState extends State<CambiarPasswordScreen> {
           field(nueva, 'Mínimo 6 caracteres', obscure: true, icon: Icons.lock_reset, onChanged: (_) => setState(() => error = null)),
           label('Repite la nueva contraseña'),
           field(repetir, 'Repítela', obscure: true, icon: Icons.lock_reset, onChanged: (_) => setState(() => error = null)),
-          if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, style: ts(13, c: Colors.red.shade700, w: FontWeight.w500))),
+          if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, style: ts(13, c: danger, w: FontWeight.w500))),
         ]),
       );
 }
@@ -55,7 +55,7 @@ class FotoPerfilScreen extends StatelessWidget {
               child: Btn('Listo', () {
                 Navigator.of(context).pop();
                 toast(context, 'Foto de perfil actualizada');
-              }, bg: lime, fg: navy),
+              }, fg: ink),
             ),
             child: ListView(padding: const EdgeInsets.all(16), children: [
               Center(child: Avatar(ini, size: 120, tone: app.myTone)),
@@ -68,13 +68,13 @@ class FotoPerfilScreen extends StatelessWidget {
                     onTap: () => app.setTone(i),
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), border: Border.all(color: app.myTone == i ? navy : Colors.transparent, width: 2)),
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), border: Border.all(color: app.myTone == i ? lime : Colors.transparent, width: 2)),
                       child: Avatar(ini, size: 56, tone: i),
                     ),
                   ),
               ]),
               const SizedBox(height: 16),
-              Text('Por ahora el avatar usa tus iniciales y el color que elijas.', style: ts(12, c: slate, h: 1.4)),
+              Text('Por ahora el avatar usa tus iniciales y el color que elijas.', style: ts(12, c: muted, h: 1.4)),
             ]),
           );
         },
@@ -94,7 +94,7 @@ class NotificacionesScreen extends StatelessWidget {
             subtitle: app.unreadCount == 0 ? 'Todo al día' : '${app.unreadCount} sin leer',
             actions: [if (app.unreadCount > 0) RoundBtn(Icons.done_all, app.markAllRead)],
             child: list.isEmpty
-                ? Center(child: Text('No tienes notificaciones.', style: ts(14, c: slate)))
+                ? const EmptyState(Icons.notifications_none, 'Todo al día', 'Aquí verás mensajes, planes acordados y reseñas nuevas.')
                 : ListView(padding: const EdgeInsets.all(16), children: [
                     for (final n in list)
                       GestureDetector(
@@ -105,26 +105,39 @@ class NotificacionesScreen extends StatelessWidget {
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.all(14),
-                          decoration: box(bg: n.leida ? white : cyanFaint, bd: n.leida ? soft : cyanTint),
+                          decoration: box(bg: n.leida ? surface : cyanTint, bd: n.leida ? line : cyanTint),
                           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Padding(
                               padding: const EdgeInsets.only(top: 5, right: 10),
-                              child: Container(width: 8, height: 8, decoration: BoxDecoration(color: n.leida ? Colors.transparent : cyan, shape: BoxShape.circle)),
+                              child: Container(width: 8, height: 8, decoration: BoxDecoration(color: n.leida ? Colors.transparent : lime, shape: BoxShape.circle)),
                             ),
                             Expanded(
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Text(n.titulo, style: ts(14, w: n.leida ? FontWeight.w500 : FontWeight.w700)),
                                 const SizedBox(height: 2),
-                                Text(n.cuerpo, maxLines: 2, overflow: TextOverflow.ellipsis, style: ts(13, c: slate, h: 1.35)),
+                                Text(n.cuerpo, maxLines: 2, overflow: TextOverflow.ellipsis, style: ts(13, c: muted, h: 1.35)),
                               ]),
                             ),
                             const SizedBox(width: 8),
-                            Text(n.hora, style: ts(11, c: slate)),
+                            Text(n.hora, style: ts(11, c: muted)),
                           ]),
                         ),
                       ),
                   ]),
           );
         },
+      );
+}
+
+/// Campana con contador de no leídas: abre las notificaciones.
+class BellBtn extends StatelessWidget {
+  const BellBtn({super.key});
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: app,
+        builder: (context, _) => Stack(clipBehavior: Clip.none, children: [
+          RoundBtn(app.unreadCount > 0 ? Icons.notifications_active : Icons.notifications_none, () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificacionesScreen())), fg: app.unreadCount > 0 ? lime : text),
+          if (app.unreadCount > 0) Positioned(right: -6, top: -6, child: countBadge(app.unreadCount)),
+        ]),
       );
 }

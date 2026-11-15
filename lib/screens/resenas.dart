@@ -7,11 +7,11 @@ import '../ui.dart';
 Widget ratingSummary(String coachId, {double size = 14}) {
   final r = app.ratingOf(coachId);
   final n = app.reviewsOf(coachId).length;
-  if (r == null) return Text('Sin reseñas todavía', style: ts(12, c: slate));
+  if (r == null) return Text('Sin reseñas todavía', style: ts(12, c: muted));
   return Row(mainAxisSize: MainAxisSize.min, children: [
     Stars(r, size: size),
     const SizedBox(width: 6),
-    Text('${r.toStringAsFixed(1)} · $n ${n == 1 ? 'reseña' : 'reseñas'}', style: ts(12, c: slate, w: FontWeight.w500)),
+    Text('${r.toStringAsFixed(1)} · $n ${n == 1 ? 'reseña' : 'reseñas'}', style: ts(12, c: muted, w: FontWeight.w500)),
   ]);
 }
 
@@ -26,7 +26,7 @@ class ResenaCard extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(child: Text(r.autor, style: ts(14, w: FontWeight.w600))),
-            Text(r.fecha, style: ts(11, c: slate)),
+            Text(r.fecha, style: ts(11, c: muted)),
           ]),
           const SizedBox(height: 4),
           Stars(r.estrellas.toDouble(), size: 15),
@@ -48,9 +48,9 @@ class ResenasScreen extends StatelessWidget {
           final mine = app.myReview(coachId);
           Widget? bottom;
           if (app.canReview(coachId)) {
-            bottom = SizedBox(width: double.infinity, child: Btn(mine == null ? 'Escribir reseña' : 'Editar mi reseña', () => showSheet(context, (_) => _ResenaSheet(coachId: coachId)), bg: lime, fg: navy, icon: Icons.rate_review_outlined));
+            bottom = SizedBox(width: double.infinity, child: Btn(mine == null ? 'Escribir reseña' : 'Editar mi reseña', () => showSheet(context, (_) => _ResenaSheet(coachId: coachId)), fg: ink, icon: Icons.rate_review_outlined));
           } else if (app.me != null) {
-            bottom = Text('Podrás dejar una reseña después de conversar con ${c.nombre.split(' ').first}.', style: ts(12, c: slate), textAlign: TextAlign.center);
+            bottom = Text('Podrás dejar una reseña después de conversar con ${c.nombre.split(' ').first}.', style: ts(12, c: muted), textAlign: TextAlign.center);
           }
           return SubScreen(
             title: 'Reseñas',
@@ -59,21 +59,21 @@ class ResenasScreen extends StatelessWidget {
             child: ListView(padding: const EdgeInsets.all(16), children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: box(bg: navy, bd: null),
+                decoration: box(bg: surface2, bd: line),
                 child: Row(children: [
-                  Text(app.ratingOf(coachId)?.toStringAsFixed(1) ?? '—', style: ts(36, w: FontWeight.w700, c: white)),
+                  Text(app.ratingOf(coachId)?.toStringAsFixed(1) ?? '—', style: ts(36, w: FontWeight.w700, c: text)),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Stars(app.ratingOf(coachId) ?? 0, size: 20),
                       const SizedBox(height: 4),
-                      Text('${list.length} ${list.length == 1 ? 'reseña' : 'reseñas'}', style: ts(13, c: soft)),
+                      Text('${list.length} ${list.length == 1 ? 'reseña' : 'reseñas'}', style: ts(13, c: muted)),
                     ]),
                   ),
                 ]),
               ),
               const SizedBox(height: 16),
-              if (list.isEmpty) Text('Aún no hay reseñas.', style: ts(14, c: slate)),
+              if (list.isEmpty) Text('Aún no hay reseñas.', style: ts(14, c: muted)),
               for (final r in list) ResenaCard(r),
             ]),
           );
@@ -103,7 +103,7 @@ class _ResenaSheetState extends State<_ResenaSheet> {
             for (var i = 1; i <= 5; i++)
               GestureDetector(
                 onTap: () => setState(() => estrellas = i),
-                child: Padding(padding: const EdgeInsets.only(right: 6), child: Icon(i <= estrellas ? Icons.star : Icons.star_border, size: 36, color: const Color(0xFFF59E0B))),
+                child: Padding(padding: const EdgeInsets.only(right: 6), child: Icon(i <= estrellas ? Icons.star_rounded : Icons.star_outline_rounded, size: 36, color: amber)),
               ),
           ]),
           label('Comentario (opcional)'),
@@ -117,7 +117,7 @@ class _ResenaSheetState extends State<_ResenaSheet> {
                     app.addReview(widget.coachId, estrellas, texto.text);
                     Navigator.pop(context);
                     toast(context, 'Reseña publicada');
-                  }, bg: lime, fg: navy),
+                  }, fg: ink),
           ),
         ]),
       );
