@@ -53,14 +53,6 @@ BEGIN
   UPDATE messages SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE id = NEW.id;
 END;
 
-CREATE TRIGGER bookings_set_updated_at
-AFTER UPDATE ON bookings
-FOR EACH ROW
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-  UPDATE bookings SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE id = NEW.id;
-END;
-
 CREATE TRIGGER reviews_set_updated_at
 AFTER UPDATE ON reviews
 FOR EACH ROW
@@ -88,15 +80,40 @@ END;
 -- ---------------------------------------------------------------------------
 -- contact_requests
 -- ---------------------------------------------------------------------------
+CREATE TRIGGER contact_requests_valid_participants
+BEFORE INSERT ON contact_requests
+FOR EACH ROW
+BEGIN
+  SELECT RAISE(ABORT, 'Contact requests require a student and an active coach')
+  WHERE NOT EXISTS (
+    SELECT 1 FROM profiles WHERE id = NEW.student_id AND role = 'student'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM coaches WHERE id = NEW.coach_id AND status = 'active'
+  );
+END;
+
 -- A new contact request notifies the coach.
 CREATE TRIGGER contact_requests_notify_created
 AFTER INSERT ON contact_requests
 FOR EACH ROW
 BEGIN
-  INSERT INTO notifications (recipient_id, notification_type, contact_request_id)
-  SELECT c.profile_id, 'contact_request_created', NEW.id
+  INSERT INTO notifications (
+    recipient_id, notification_type, contact_request_id, created_at, updated_at
+  )
+  SELECT c.profile_id, 'contact_request_created', NEW.id, NEW.created_at, NEW.created_at
   FROM coaches c
   WHERE c.id = NEW.coach_id;
+END;
+
+-- Favorites belong to students; the foreign key already validates the coach.
+CREATE TRIGGER favorites_student_only
+BEFORE INSERT ON favorites
+FOR EACH ROW
+BEGIN
+  SELECT RAISE(ABORT, 'Only students can favorite coaches')
+  WHERE NOT EXISTS (
+    SELECT 1 FROM profiles WHERE id = NEW.profile_id AND role = 'student'
+  );
 END;
 
 -- Accepting a request creates or reuses the conversation for the pair.
@@ -107,6 +124,20 @@ WHEN OLD.status = 'pending' AND NEW.status = 'accepted'
 BEGIN
   INSERT OR IGNORE INTO conversations (student_id, coach_id)
   VALUES (NEW.student_id, NEW.coach_id);
+END;
+
+-- Resolving a request notifies the student.
+CREATE TRIGGER contact_requests_notify_resolved
+AFTER UPDATE OF status ON contact_requests
+FOR EACH ROW
+WHEN OLD.status = 'pending' AND NEW.status IN ('accepted', 'declined')
+BEGIN
+  INSERT INTO notifications (
+    recipient_id, notification_type, contact_request_id, created_at, updated_at
+  )
+  VALUES (
+    NEW.student_id, 'contact_request_resolved', NEW.id, NEW.resolved_at, NEW.resolved_at
+  );
 END;
 
 -- A resolved request cannot be reopened.
@@ -150,88 +181,39 @@ BEGIN
 END;
 
 -- ---------------------------------------------------------------------------
--- bookings
--- ---------------------------------------------------------------------------
--- Trial bookings are only allowed when the coach offers trial classes.
-CREATE TRIGGER bookings_trial_insert
-BEFORE INSERT ON bookings
-FOR EACH ROW
-WHEN NEW.booking_type = 'trial_class'
-BEGIN
-  SELECT RAISE(ABORT, 'This coach does not offer trial classes')
-  WHERE NOT EXISTS (SELECT 1 FROM coaches WHERE id = NEW.coach_id AND trial_class_available = 1);
-END;
-
-CREATE TRIGGER bookings_trial_update
-BEFORE UPDATE OF booking_type, coach_id ON bookings
-FOR EACH ROW
-WHEN NEW.booking_type = 'trial_class'
-BEGIN
-  SELECT RAISE(ABORT, 'This coach does not offer trial classes')
-  WHERE NOT EXISTS (SELECT 1 FROM coaches WHERE id = NEW.coach_id AND trial_class_available = 1);
-END;
-
--- A coach cannot have two overlapping confirmed bookings (stands in for a Postgres exclusion constraint).
-CREATE TRIGGER bookings_no_overlap_insert
-BEFORE INSERT ON bookings
-FOR EACH ROW
-WHEN NEW.status = 'confirmed'
-BEGIN
-  SELECT RAISE(ABORT, 'Coach already has a confirmed booking in that time range')
-  WHERE EXISTS (
-    SELECT 1 FROM bookings b
-    WHERE b.coach_id = NEW.coach_id
-      AND b.status = 'confirmed'
-      AND b.starts_at < NEW.ends_at
-      AND b.ends_at > NEW.starts_at
-  );
-END;
-
-CREATE TRIGGER bookings_no_overlap_update
-BEFORE UPDATE OF status, starts_at, ends_at, coach_id ON bookings
-FOR EACH ROW
-WHEN NEW.status = 'confirmed'
-BEGIN
-  SELECT RAISE(ABORT, 'Coach already has a confirmed booking in that time range')
-  WHERE EXISTS (
-    SELECT 1 FROM bookings b
-    WHERE b.id <> NEW.id
-      AND b.coach_id = NEW.coach_id
-      AND b.status = 'confirmed'
-      AND b.starts_at < NEW.ends_at
-      AND b.ends_at > NEW.starts_at
-  );
-END;
-
--- A new booking notifies the coach.
-CREATE TRIGGER bookings_notify_created
-AFTER INSERT ON bookings
-FOR EACH ROW
-BEGIN
-  INSERT INTO notifications (recipient_id, notification_type, booking_id)
-  SELECT c.profile_id, 'booking_created', NEW.id
-  FROM coaches c
-  WHERE c.id = NEW.coach_id;
-END;
-
--- ---------------------------------------------------------------------------
 -- reviews
 -- ---------------------------------------------------------------------------
--- Only a completed booking can be reviewed (one review per booking is the UNIQUE on booking_id).
-CREATE TRIGGER reviews_completed_booking_only
+-- Only a student with a conversation with the coach can review them.
+CREATE TRIGGER reviews_requires_conversation
 BEFORE INSERT ON reviews
 FOR EACH ROW
 BEGIN
-  SELECT RAISE(ABORT, 'Only a completed booking can be reviewed')
-  WHERE NOT EXISTS (SELECT 1 FROM bookings WHERE id = NEW.booking_id AND status = 'completed');
+  SELECT RAISE(ABORT, 'Only students with a conversation with this coach can review them')
+  WHERE NOT EXISTS (
+    SELECT 1 FROM conversations
+    WHERE student_id = NEW.student_id AND coach_id = NEW.coach_id
+  );
 END;
 
-CREATE TRIGGER reviews_booking_immutable
-BEFORE UPDATE OF booking_id ON reviews
+CREATE TRIGGER reviews_identity_immutable
+BEFORE UPDATE OF coach_id, student_id ON reviews
 FOR EACH ROW
-WHEN NEW.booking_id IS NOT OLD.booking_id
+WHEN NEW.coach_id IS NOT OLD.coach_id OR NEW.student_id IS NOT OLD.student_id
 BEGIN
-  SELECT RAISE(ABORT, 'A review cannot be moved to another booking');
+  SELECT RAISE(ABORT, 'A review cannot change its author or its coach');
+END;
+
+-- A new review notifies the coach.
+CREATE TRIGGER reviews_notify_created
+AFTER INSERT ON reviews
+FOR EACH ROW
+BEGIN
+  INSERT INTO notifications (
+    recipient_id, notification_type, review_id, created_at, updated_at
+  )
+  SELECT c.profile_id, 'review_created', NEW.id, NEW.created_at, NEW.created_at
+  FROM coaches c
+  WHERE c.id = NEW.coach_id;
 END;
 
 -- ---------------------------------------------------------------------------

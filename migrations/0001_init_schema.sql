@@ -55,6 +55,7 @@ CREATE INDEX idx_coaches_verified_by ON coaches (verified_by);
 CREATE TABLE plans (
   id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))),
   coach_id      TEXT NOT NULL REFERENCES coaches (id) ON DELETE CASCADE,
+  tier          TEXT NOT NULL CHECK (tier IN ('start', 'plus', 'pro')),
   title         VARCHAR(150) NOT NULL CHECK (trim(title) <> ''),
   description   TEXT,
   price         NUMERIC NOT NULL CHECK (price >= 0),
@@ -64,6 +65,7 @@ CREATE TABLE plans (
   updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 CREATE INDEX idx_plans_coach_status ON plans (coach_id, status);
+CREATE UNIQUE INDEX uq_plans_coach_tier ON plans (coach_id, tier);
 
 CREATE TABLE coach_media (
   id         TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))),
@@ -116,7 +118,7 @@ CREATE TABLE messages (
   id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))),
   conversation_id TEXT NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
   sender_id       TEXT NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
-  body            TEXT NOT NULL CHECK (trim(body) <> ''),
+  body            TEXT NOT NULL CHECK (length(trim(body)) BETWEEN 1 AND 2000),
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   read_at         TEXT,
@@ -125,50 +127,46 @@ CREATE TABLE messages (
 CREATE INDEX idx_messages_conversation_created ON messages (conversation_id, created_at);
 CREATE INDEX idx_messages_sender ON messages (sender_id);
 
-CREATE TABLE bookings (
-  id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))),
-  student_id   TEXT NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
-  coach_id     TEXT NOT NULL REFERENCES coaches (id) ON DELETE CASCADE,
-  booking_type TEXT NOT NULL CHECK (booking_type IN ('trial_class', 'coaching_session')),
-  status       TEXT NOT NULL DEFAULT 'pending'
-               CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled')),
-  starts_at    TEXT NOT NULL,
-  ends_at      TEXT NOT NULL,
-  created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  CONSTRAINT ck_bookings_time_range CHECK (starts_at < ends_at)
-);
-CREATE INDEX idx_bookings_student_starts ON bookings (student_id, starts_at);
-CREATE INDEX idx_bookings_coach_starts   ON bookings (coach_id, starts_at);
-
 CREATE TABLE reviews (
   id         TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))),
-  booking_id TEXT NOT NULL UNIQUE REFERENCES bookings (id) ON DELETE CASCADE,
+  coach_id   TEXT NOT NULL REFERENCES coaches (id) ON DELETE CASCADE,
+  student_id TEXT NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
   rating     INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
   comment    TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  CONSTRAINT uq_reviews_student_coach UNIQUE (student_id, coach_id)
 );
+CREATE INDEX idx_reviews_coach ON reviews (coach_id);
+
+CREATE VIEW coach_stats AS
+SELECT c.id AS coach_id,
+       COALESCE(ROUND(AVG(r.rating), 1), 0) AS rating,
+       COUNT(r.id) AS reviews_count
+FROM coaches c
+LEFT JOIN reviews r ON r.coach_id = c.id
+GROUP BY c.id;
 
 CREATE TABLE notifications (
   id                 TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))),
   recipient_id       TEXT NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
-  notification_type  TEXT NOT NULL CHECK (notification_type IN ('contact_request_created', 'booking_created')),
+  notification_type  TEXT NOT NULL CHECK (notification_type IN ('contact_request_created', 'contact_request_resolved', 'review_created')),
   contact_request_id TEXT REFERENCES contact_requests (id) ON DELETE CASCADE,
-  booking_id         TEXT REFERENCES bookings (id) ON DELETE CASCADE,
+  review_id          TEXT REFERENCES reviews (id) ON DELETE CASCADE,
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   read_at            TEXT,
   CONSTRAINT ck_notifications_source
-    CHECK ((notification_type = 'contact_request_created' AND contact_request_id IS NOT NULL AND booking_id IS NULL)
-        OR (notification_type = 'booking_created' AND booking_id IS NOT NULL AND contact_request_id IS NULL)),
+    CHECK ((notification_type IN ('contact_request_created', 'contact_request_resolved')
+            AND contact_request_id IS NOT NULL AND review_id IS NULL)
+        OR (notification_type = 'review_created' AND review_id IS NOT NULL AND contact_request_id IS NULL)),
   CONSTRAINT ck_notifications_read_at CHECK (read_at IS NULL OR read_at >= created_at)
 );
 CREATE INDEX idx_notifications_recipient_created ON notifications (recipient_id, created_at);
-CREATE UNIQUE INDEX uq_notifications_recipient_contact_request ON notifications (recipient_id, contact_request_id);
-CREATE UNIQUE INDEX uq_notifications_recipient_booking ON notifications (recipient_id, booking_id);
+CREATE UNIQUE INDEX uq_notifications_recipient_type_request ON notifications (recipient_id, notification_type, contact_request_id);
+CREATE UNIQUE INDEX uq_notifications_recipient_review ON notifications (recipient_id, review_id);
 CREATE INDEX idx_notifications_contact_request ON notifications (contact_request_id);
-CREATE INDEX idx_notifications_booking ON notifications (booking_id);
+CREATE INDEX idx_notifications_review ON notifications (review_id);
 
 CREATE TABLE ads (
   id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))),

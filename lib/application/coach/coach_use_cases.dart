@@ -1,24 +1,30 @@
 import '../../domain/models/coach.dart';
 import '../../domain/repositories/coach_repository.dart';
 
-/// Caso de uso: Obtener coaches para swipear en la pantalla principal estilo Tinder
+/// Coaches para swipear en la pantalla principal.
 class GetDiscoveryCoaches {
   final CoachRepository _repository;
 
   const GetDiscoveryCoaches(this._repository);
 
-  Future<List<Coach>> call() async {
-    return await _repository.getDiscoveryCoaches();
-  }
+  Future<List<Coach>> call() => _repository.getDiscoveryCoaches();
 }
 
-/// Caso de uso: Obtener el detalle completo de un coach seleccionado
+/// Detalle completo de un coach.
 class GetCoachDetail {
   final CoachRepository _repository;
 
   const GetCoachDetail(this._repository);
 
-  Future<Coach?> call(String coachId) async {
-    return await _repository.getCoachById(coachId);
-  }
+  Future<Coach?> call(String coachId) => _repository.getCoachById(coachId);
+}
+
+/// Filtro por especialidad.
+class GetCoachesBySpecialty {
+  final CoachRepository _repository;
+
+  const GetCoachesBySpecialty(this._repository);
+
+  Future<List<Coach>> call(String specialty) =>
+      _repository.getCoachesBySpecialty(specialty.trim());
 }
